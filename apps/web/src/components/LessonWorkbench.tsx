@@ -1,8 +1,11 @@
 import Editor from '@monaco-editor/react'
-import type { ExecutionResult, Lesson } from '@rust-learning/shared-types'
+import type {
+  ExecutionRequest,
+  ExecutionResult,
+  Lesson,
+} from '@rust-learning/shared-types'
 import { useEffect, useMemo, useState } from 'react'
-
-const RUN_DELAY_MS = 900
+const RUNNER_URL = 'http://127.0.0.1:9091'
 
 export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
   const storageKey = useMemo(
@@ -16,7 +19,7 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
     status: 'idle',
     headline: 'Ready to run',
     output:
-      'Use the editor to change the lesson code, then run the mock compile loop. This will later be replaced by the real runner service.',
+      'Use the editor to change the lesson code, then run it through the local Rust runner service.',
   })
 
   useEffect(() => {
@@ -50,16 +53,39 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
     })
   }
 
-  function handleRun() {
+  async function handleRun() {
     setResult({
       status: 'running',
-      headline: 'Compiling mock workspace',
-      output: 'Checking syntax, lesson heuristics, and simulated runner output...',
+      headline: 'Sending code to runner',
+      output: `POST ${RUNNER_URL}/run\nPreparing temporary Cargo workspace...`,
     })
 
-    window.setTimeout(() => {
-      setResult(simulateExecution(lesson, code))
-    }, RUN_DELAY_MS)
+    try {
+      const response = await fetch(`${RUNNER_URL}/run`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          lessonSlug: lesson.slug,
+          fileName: lesson.exercise.fileName,
+          code,
+        } satisfies ExecutionRequest),
+      })
+
+      const payload = (await response.json()) as ExecutionResult
+
+      setResult(payload)
+    } catch {
+      setResult({
+        status: 'error',
+        headline: 'Runner is unreachable',
+        output: [
+          `The lesson UI tried to reach ${RUNNER_URL}/run but no runner responded.`,
+          'Start the Rust runner with `bun run dev:runner` in the repo root, then run the lesson again.',
+        ].join('\n'),
+      })
+    }
   }
 
   return (
@@ -85,7 +111,7 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
           </button>
         </div>
         <p className="workbench-note">
-          Code is saved per lesson in local browser storage.
+          Code is saved per lesson in local browser storage. Runner listens on `9091`.
         </p>
       </div>
 
@@ -147,97 +173,4 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
       </div>
     </article>
   )
-}
-
-function simulateExecution(lesson: Lesson, code: string): ExecutionResult {
-  const trimmed = code.trim()
-
-  if (!trimmed) {
-    return {
-      status: 'error',
-      headline: 'No code to compile',
-      output: 'The file is empty. Restore the starter or write a small Rust program first.',
-    }
-  }
-
-  if (hasUnbalancedDelimiters(code)) {
-    return {
-      status: 'error',
-      headline: 'Mock compiler error',
-      output:
-        'error: this file has unbalanced braces or parentheses.\nhelp: close every opened block before running again.',
-    }
-  }
-
-  if (lesson.slug === 'ownership-basics' && code.includes('let moved = message;') && code.includes('println!("{message}")')) {
-    return {
-      status: 'error',
-      headline: 'Borrow checker stopped the run',
-      output:
-        'error[E0382]: borrow of moved value: `message`\nhelp: clone `message` or borrow it instead of moving it before the second println! call.',
-    }
-  }
-
-  if (lesson.slug === 'borrowing-and-references' && code.includes('fn print_length(text: String)')) {
-    return {
-      status: 'error',
-      headline: 'Ownership mismatch',
-      output:
-        'error[E0382]: borrow of moved value: `note`\nhelp: change the parameter to `&String` or `&str` so the helper borrows instead of taking ownership.',
-    }
-  }
-
-  const successOutput = lesson.exercise.sampleOutput ?? defaultSuccessOutput(lesson, code)
-
-  return {
-    status: 'success',
-    headline: 'Mock run completed',
-    output: successOutput,
-  }
-}
-
-function hasUnbalancedDelimiters(input: string) {
-  const pairs: Record<string, string> = {
-    ')': '(',
-    ']': '[',
-    '}': '{',
-  }
-  const stack: string[] = []
-
-  for (const char of input) {
-    if (char === '(' || char === '[' || char === '{') {
-      stack.push(char)
-      continue
-    }
-
-    if (char === ')' || char === ']' || char === '}') {
-      const expected = pairs[char]
-      const actual = stack.pop()
-
-      if (actual !== expected) {
-        return true
-      }
-    }
-  }
-
-  return stack.length > 0
-}
-
-function defaultSuccessOutput(lesson: Lesson, code: string) {
-  if (lesson.slug === 'hello-rust') {
-    return 'Finished `dev` profile [unoptimized + debuginfo]\nRunning `main.rs`\nHello, Rust learner!\nReason: building real systems safely.'
-  }
-
-  if (lesson.slug === 'build-a-cli') {
-    return 'Finished `dev` profile [unoptimized + debuginfo]\nRunning `main.rs notes.txt`\nLine count: 42'
-  }
-
-  const printlnCount = (code.match(/println!/g) ?? []).length
-
-  return [
-    'Finished `dev` profile [unoptimized + debuginfo]',
-    `Running \`${lesson.exercise.fileName}\``,
-    `Detected ${printlnCount} println! macro call${printlnCount === 1 ? '' : 's'}.`,
-    lesson.exercise.success,
-  ].join('\n')
 }
