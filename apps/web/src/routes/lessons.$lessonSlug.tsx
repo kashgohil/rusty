@@ -1,5 +1,6 @@
 import { createFileRoute, notFound } from '@tanstack/react-router'
 import { getLessonBySlug } from '@rust-learning/lesson-content'
+import { LessonWorkbench } from '~/components/LessonWorkbench'
 
 export const Route = createFileRoute('/lessons/$lessonSlug')({
   component: LessonDetailPage,
@@ -38,31 +39,7 @@ function LessonDetailPage() {
         </div>
       </article>
 
-      <article className="workbench-panel">
-        <div className="workbench-header">
-          <div>
-            <p className="eyebrow">IDE shell</p>
-            <h2>{lesson.exercise.fileName}</h2>
-          </div>
-          <div className="workbench-status">
-            <span>compile/run</span>
-            <span>LSP pending</span>
-          </div>
-        </div>
-
-        <pre className="code-pane">{lesson.exercise.starterCode}</pre>
-
-        <div className="workbench-footer">
-          <div>
-            <h3>Hint</h3>
-            <p>{lesson.exercise.hint}</p>
-          </div>
-          <div>
-            <h3>Validation target</h3>
-            <p>{lesson.exercise.success}</p>
-          </div>
-        </div>
-      </article>
+      <LessonWorkbench lesson={lesson} />
     </section>
   )
 }

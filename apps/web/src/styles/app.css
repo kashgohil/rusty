@@ -243,7 +243,9 @@
   .ide-topbar,
   .ide-console,
   .workbench-header,
-  .workbench-footer {
+  .workbench-footer,
+  .workbench-controls,
+  .output-panel-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -396,9 +398,95 @@
     overflow: hidden;
   }
 
+  .workbench-controls {
+    border-bottom: 1px solid rgb(162 143 108 / 0.14);
+    flex-wrap: wrap;
+  }
+
+  .workbench-control-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+  }
+
+  .workbench-controls .primary-pill,
+  .workbench-controls .ghost-pill {
+    padding-block: 0.7rem;
+    font-size: 0.74rem;
+  }
+
+  .workbench-note {
+    color: rgb(243 239 230 / 0.54);
+    font-size: 0.76rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .editor-shell {
+    border-bottom: 1px solid rgb(162 143 108 / 0.14);
+  }
+
+  .editor-loading {
+    display: grid;
+    min-height: 420px;
+    place-items: center;
+    color: rgb(243 239 230 / 0.68);
+  }
+
   .workbench-status {
     display: inline-flex;
     gap: 0.7rem;
+  }
+
+  .output-panel {
+    border-bottom: 1px solid rgb(162 143 108 / 0.14);
+    background: rgb(7 11 12 / 0.8);
+  }
+
+  .output-panel-header {
+    border-bottom: 1px solid rgb(162 143 108 / 0.14);
+  }
+
+  .output-panel-header h3 {
+    font-size: 1rem;
+  }
+
+  .output-badge {
+    border-radius: 999px;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.72rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .output-badge-idle {
+    background: rgb(123 125 113 / 0.16);
+    color: rgb(243 239 230 / 0.72);
+  }
+
+  .output-badge-running {
+    background: rgb(241 166 59 / 0.16);
+    color: rgb(248 205 131);
+  }
+
+  .output-badge-success {
+    background: rgb(124 226 208 / 0.16);
+    color: rgb(166 244 232);
+  }
+
+  .output-badge-error {
+    background: rgb(239 107 71 / 0.18);
+    color: rgb(255 179 156);
+  }
+
+  .output-console {
+    overflow-x: auto;
+    margin: 0;
+    padding: 1.2rem;
+    color: #dfe9dc;
+    font-size: 0.84rem;
+    line-height: 1.75;
+    white-space: pre-wrap;
   }
 
   .workbench-footer {
