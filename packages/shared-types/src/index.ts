@@ -10,6 +10,7 @@ export interface LessonExercise {
   starterCode: string
   hint: string
   success: string
+  sampleOutput?: string
 }
 
 export interface Lesson {
@@ -22,4 +23,12 @@ export interface Lesson {
   duration: string
   objectives: string[]
   exercise: LessonExercise
+}
+
+export type ExecutionStatus = 'idle' | 'running' | 'success' | 'error'
+
+export interface ExecutionResult {
+  status: ExecutionStatus
+  headline: string
+  output: string
 }
