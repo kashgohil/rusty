@@ -1,0 +1,11 @@
+{
+  "name": "@rust-learning/lesson-content",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@rust-learning/shared-types": "workspace:*"
+  }
+}

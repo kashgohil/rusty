@@ -1,0 +1,19 @@
+{
+  "name": "rust-learning",
+  "private": true,
+  "packageManager": "bun@1.3.9",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "bun --cwd apps/web dev",
+    "dev:web": "bun --cwd apps/web dev",
+    "build:web": "bun --cwd apps/web build",
+    "preview:web": "bun --cwd apps/web preview",
+    "typecheck:web": "bun --cwd apps/web typecheck",
+    "dev:api": "bun --cwd apps/api dev",
+    "dev:runner": "bun --cwd apps/runner dev",
+    "check": "bun run typecheck:web && bun run build:web"
+  }
+}
