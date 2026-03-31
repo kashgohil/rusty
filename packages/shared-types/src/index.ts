@@ -27,6 +27,12 @@ export interface Lesson {
 
 export type ExecutionStatus = 'idle' | 'running' | 'success' | 'error'
 
+export interface ExecutionRequest {
+  lessonSlug: string
+  fileName: string
+  code: string
+}
+
 export interface ExecutionResult {
   status: ExecutionStatus
   headline: string
