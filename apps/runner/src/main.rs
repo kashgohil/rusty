@@ -5,6 +5,7 @@ use axum::{
     response::IntoResponse,
     routing::{get, post},
 };
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::{
     net::SocketAddr,
@@ -34,6 +35,7 @@ struct ExecutionRequest {
     lesson_slug: String,
     file_name: String,
     code: String,
+    mode: ExecutionMode,
 }
 
 #[derive(Debug, Serialize)]
@@ -42,6 +44,8 @@ struct ExecutionResult {
     status: ExecutionStatus,
     headline: String,
     output: String,
+    passed: Option<bool>,
+    checks: Option<Vec<CheckResult>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -49,6 +53,20 @@ struct ExecutionResult {
 enum ExecutionStatus {
     Success,
     Error,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+enum ExecutionMode {
+    Run,
+    Check,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CheckResult {
+    passed: bool,
+    message: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -98,6 +116,8 @@ async fn run_code(
             headline: "No code to compile".to_string(),
             output: "The file is empty. Restore the starter or write a small Rust program first."
                 .to_string(),
+            passed: Some(false),
+            checks: None,
         }));
     }
 
@@ -142,10 +162,33 @@ async fn execute_rust_program(
             stdout
         };
 
+        if payload.mode == ExecutionMode::Check {
+            let checks = evaluate_checks(&payload.lesson_slug, &payload.code);
+            let passed = checks.iter().all(|check| check.passed);
+
+            return Ok(ExecutionResult {
+                status: if passed {
+                    ExecutionStatus::Success
+                } else {
+                    ExecutionStatus::Error
+                },
+                headline: if passed {
+                    "Lesson validation passed".to_string()
+                } else {
+                    "Lesson validation failed".to_string()
+                },
+                output: rendered_output,
+                passed: Some(passed),
+                checks: Some(checks),
+            });
+        }
+
         return Ok(ExecutionResult {
             status: ExecutionStatus::Success,
             headline: "Runner executed successfully".to_string(),
             output: rendered_output,
+            passed: None,
+            checks: None,
         });
     }
 
@@ -161,7 +204,100 @@ async fn execute_rust_program(
         status: ExecutionStatus::Error,
         headline: "Runner returned a compile or runtime error".to_string(),
         output: combined_output,
+        passed: Some(false),
+        checks: if payload.mode == ExecutionMode::Check {
+            Some(evaluate_checks(&payload.lesson_slug, &payload.code))
+        } else {
+            None
+        },
     })
+}
+
+fn evaluate_checks(lesson_slug: &str, code: &str) -> Vec<CheckResult> {
+    match lesson_slug {
+        "hello-rust" => vec![
+            contains_regex(code, r"println!\s*\(", "Use at least one println! call in the program."),
+            contains_text(code, "Reason:", "Print a second line that includes the word `Reason:`."),
+        ],
+        "ownership-basics" => vec![
+            not_contains_text(
+                code,
+                "let moved = message;",
+                "Do not keep the original move line unchanged.",
+            ),
+            contains_regex(
+                code,
+                r"(clone\s*\(|&message|ref\s+message)",
+                "Use borrowing or cloning instead of moving the value unchanged.",
+            ),
+        ],
+        "borrowing-and-references" => vec![
+            contains_regex(
+                code,
+                r"fn\s+print_length\s*\(\s*text\s*:\s*&(?:String|str)",
+                "Change print_length to borrow the string instead of taking ownership.",
+            ),
+            contains_text(
+                code,
+                r#"println!("{note}")"#,
+                "Keep using `note` after the helper call.",
+            ),
+        ],
+        "structs-and-methods" => vec![
+            contains_text(code, "impl Lesson", "Add an impl block for Lesson."),
+            contains_regex(
+                code,
+                r"fn\s+[a-zA-Z_][a-zA-Z0-9_]*\s*\(\s*&self",
+                "Add at least one method that takes `&self`.",
+            ),
+        ],
+        "results-and-errors" => vec![
+            contains_regex(code, r"->\s*Result<", "Return a Result from parse_age."),
+            not_contains_text(
+                code,
+                "unwrap()",
+                "Remove unwrap-driven control flow from the lesson solution.",
+            ),
+        ],
+        "build-a-cli" => vec![
+            contains_regex(
+                code,
+                r"(std::env::args\(|env::args\()",
+                "Read CLI arguments from std::env::args.",
+            ),
+            contains_regex(
+                code,
+                r"(std::fs::read_to_string\(|fs::read_to_string\()",
+                "Read file contents from disk.",
+            ),
+        ],
+        _ => Vec::new(),
+    }
+}
+
+fn contains_text(code: &str, needle: &str, message: &str) -> CheckResult {
+    CheckResult {
+        passed: code.contains(needle),
+        message: message.to_string(),
+    }
+}
+
+fn not_contains_text(code: &str, needle: &str, message: &str) -> CheckResult {
+    CheckResult {
+        passed: !code.contains(needle),
+        message: message.to_string(),
+    }
+}
+
+fn contains_regex(code: &str, pattern: &str, message: &str) -> CheckResult {
+    let passed = Regex::new(pattern)
+        .map(|regex| regex.is_match(code))
+        .unwrap_or(false);
+
+    CheckResult {
+        passed,
+        message: message.to_string(),
+    }
 }
 
 fn cargo_manifest(lesson_slug: &str) -> String {
@@ -241,6 +377,8 @@ impl IntoResponse for RunnerError {
             status: ExecutionStatus::Error,
             headline: "Runner request failed".to_string(),
             output: self.message,
+            passed: Some(false),
+            checks: None,
         });
 
         (self.status, body).into_response()
