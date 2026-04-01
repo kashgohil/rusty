@@ -27,6 +27,18 @@ export const curriculum: Lesson[] = [
       starterCode: `fn main() {\n    let learner = "friend";\n    println!("Hello, {learner}!");\n}\n`,
       hint: 'Change the string value and add a second println! line.',
       success: 'The program compiles and prints two custom lines of output.',
+      checks: [
+        {
+          type: 'regex',
+          value: 'println!\\s*\\(',
+          message: 'Use at least one println! call in the program.',
+        },
+        {
+          type: 'contains',
+          value: 'Reason:',
+          message: 'Print a second line that includes the word `Reason:`.',
+        },
+      ],
     },
   },
   {
@@ -48,6 +60,18 @@ export const curriculum: Lesson[] = [
       starterCode: `fn main() {\n    let message = String::from("ownership matters");\n    let moved = message;\n\n    println!("{moved}");\n    println!("{message}");\n}\n`,
       hint: 'Either borrow or clone. Pick the reasoned tradeoff, not a random fix.',
       success: 'The learner can explain why the chosen fix works.',
+      checks: [
+        {
+          type: 'not_contains',
+          value: 'let moved = message;',
+          message: 'Do not keep the original move line unchanged.',
+        },
+        {
+          type: 'regex',
+          value: '(clone\\s*\\(|&message|ref\\s+message)',
+          message: 'Use borrowing or cloning instead of moving the value unchanged.',
+        },
+      ],
     },
   },
   {
@@ -69,6 +93,18 @@ export const curriculum: Lesson[] = [
       starterCode: `fn print_length(text: String) {\n    println!("Length: {}", text.len());\n}\n\nfn main() {\n    let note = String::from("borrow me");\n    print_length(note);\n    println!("{note}");\n}\n`,
       hint: 'The function does not need ownership. Its parameter type should say that.',
       success: 'The helper compiles and the original String remains usable afterward.',
+      checks: [
+        {
+          type: 'regex',
+          value: 'fn\\s+print_length\\s*\\(\\s*text\\s*:\\s*&(?:String|str)',
+          message: 'Change print_length to borrow the string instead of taking ownership.',
+        },
+        {
+          type: 'contains',
+          value: 'println!("{note}")',
+          message: 'Keep using `note` after the helper call.',
+        },
+      ],
     },
   },
   {
@@ -90,6 +126,18 @@ export const curriculum: Lesson[] = [
       starterCode: `struct Lesson {\n    title: String,\n    minutes: u32,\n}\n\nfn main() {\n    let lesson = Lesson {\n        title: String::from("Structs"),\n        minutes: 45,\n    };\n\n    println!("TODO");\n}\n`,
       hint: 'The logic belongs on the type. Use an impl block.',
       success: 'The learner can call a method on Lesson and print a useful summary.',
+      checks: [
+        {
+          type: 'contains',
+          value: 'impl Lesson',
+          message: 'Add an impl block for Lesson.',
+        },
+        {
+          type: 'regex',
+          value: 'fn\\s+[a-zA-Z_][a-zA-Z0-9_]*\\s*\\(\\s*&self',
+          message: 'Add at least one method that takes `&self`.',
+        },
+      ],
     },
   },
   {
@@ -111,6 +159,18 @@ export const curriculum: Lesson[] = [
       starterCode: `fn parse_age(input: &str) -> u8 {\n    input.parse().unwrap()\n}\n\nfn main() {\n    let age = parse_age("twelve");\n    println!("Age: {age}");\n}\n`,
       hint: 'Replace unwrap-driven control flow with an explicit Result path.',
       success: 'Bad input no longer crashes the program and the outcome is explained clearly.',
+      checks: [
+        {
+          type: 'regex',
+          value: '->\\s*Result<',
+          message: 'Return a Result from parse_age.',
+        },
+        {
+          type: 'not_contains',
+          value: 'unwrap()',
+          message: 'Remove unwrap-driven control flow from the lesson solution.',
+        },
+      ],
     },
   },
   {
@@ -132,6 +192,18 @@ export const curriculum: Lesson[] = [
       starterCode: `fn main() {\n    println!("next: read args and count lines");\n}\n`,
       hint: 'Break the job into steps: args, read file, count lines, print result.',
       success: 'A learner can point the program at a text file and get a useful count back.',
+      checks: [
+        {
+          type: 'regex',
+          value: '(std::env::args\\(|env::args\\()',
+          message: 'Read CLI arguments from std::env::args.',
+        },
+        {
+          type: 'regex',
+          value: '(std::fs::read_to_string\\(|fs::read_to_string\\()',
+          message: 'Read file contents from disk.',
+        },
+      ],
     },
   },
 ]
