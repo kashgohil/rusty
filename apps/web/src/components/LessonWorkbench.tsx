@@ -1,5 +1,7 @@
 import Editor from '@monaco-editor/react'
 import type {
+  ExecutionCheckResult,
+  ExecutionMode,
   ExecutionRequest,
   ExecutionResult,
   Lesson,
@@ -21,6 +23,7 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
     output:
       'Use the editor to change the lesson code, then run it through the local Rust runner service.',
   })
+  const [activeAction, setActiveAction] = useState<ExecutionMode | null>(null)
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -53,11 +56,15 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
     })
   }
 
-  async function handleRun() {
+  async function execute(mode: ExecutionMode) {
+    setActiveAction(mode)
     setResult({
       status: 'running',
-      headline: 'Sending code to runner',
-      output: `POST ${RUNNER_URL}/run\nPreparing temporary Cargo workspace...`,
+      headline: mode === 'run' ? 'Sending code to runner' : 'Checking lesson answer',
+      output:
+        mode === 'run'
+          ? `POST ${RUNNER_URL}/run\nPreparing temporary Cargo workspace...`
+          : `POST ${RUNNER_URL}/run\nCompiling code and evaluating lesson checks...`,
     })
 
     try {
@@ -70,12 +77,13 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
           lessonSlug: lesson.slug,
           fileName: lesson.exercise.fileName,
           code,
+          mode,
         } satisfies ExecutionRequest),
       })
 
       const payload = (await response.json()) as ExecutionResult
 
-      setResult(payload)
+      setResult(mode === 'check' ? formatCheckResult(payload) : payload)
     } catch {
       setResult({
         status: 'error',
@@ -85,6 +93,8 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
           'Start the Rust runner with `bun run dev:runner` in the repo root, then run the lesson again.',
         ].join('\n'),
       })
+    } finally {
+      setActiveAction(null)
     }
   }
 
@@ -103,10 +113,28 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
 
       <div className="workbench-controls">
         <div className="workbench-control-group">
-          <button className="primary-pill" onClick={handleRun} type="button">
+          <button
+            className="primary-pill"
+            disabled={activeAction !== null}
+            onClick={() => void execute('run')}
+            type="button"
+          >
             Run lesson
           </button>
-          <button className="ghost-pill" onClick={handleReset} type="button">
+          <button
+            className="ghost-pill"
+            disabled={activeAction !== null}
+            onClick={() => void execute('check')}
+            type="button"
+          >
+            Check answer
+          </button>
+          <button
+            className="ghost-pill"
+            disabled={activeAction !== null}
+            onClick={handleReset}
+            type="button"
+          >
             Reset starter
           </button>
         </div>
@@ -173,4 +201,24 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
       </div>
     </article>
   )
+}
+
+function formatCheckResult(payload: ExecutionResult): ExecutionResult {
+  const checkLines = renderChecks(payload.checks)
+
+  return {
+    ...payload,
+    headline: payload.passed ? 'Lesson checks passed' : 'Lesson checks failed',
+    output: checkLines ? `${payload.output}\n\n${checkLines}` : payload.output,
+  }
+}
+
+function renderChecks(checks: ExecutionCheckResult[] | undefined) {
+  if (!checks || checks.length === 0) {
+    return ''
+  }
+
+  return checks
+    .map((check) => `${check.passed ? 'PASS' : 'FAIL'}: ${check.message}`)
+    .join('\n')
 }
