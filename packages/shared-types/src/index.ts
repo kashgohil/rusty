@@ -54,3 +54,12 @@ export interface ExecutionCheckResult {
   passed: boolean
   message: string
 }
+
+export type LessonProgressStatus = 'not_started' | 'in_progress' | 'completed'
+
+export interface LessonProgressEntry {
+  status: LessonProgressStatus
+  updatedAt: string
+}
+
+export type LessonProgressMap = Record<string, LessonProgressEntry>
