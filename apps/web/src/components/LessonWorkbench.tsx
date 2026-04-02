@@ -7,6 +7,8 @@ import type {
   Lesson,
 } from '@rust-learning/shared-types'
 import { useEffect, useMemo, useState } from 'react'
+import { updateLessonProgress } from '~/utils/progress'
+import { useLessonProgress } from '~/utils/useLessonProgress'
 const RUNNER_URL = 'http://127.0.0.1:9091'
 
 export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
@@ -17,6 +19,7 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
 
   const [code, setCode] = useState(lesson.exercise.starterCode)
   const [isHydrated, setIsHydrated] = useState(false)
+  const progress = useLessonProgress()
   const [result, setResult] = useState<ExecutionResult>({
     status: 'idle',
     headline: 'Ready to run',
@@ -45,6 +48,10 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
     }
 
     window.localStorage.setItem(storageKey, code)
+
+    if (code !== lesson.exercise.starterCode) {
+      updateLessonProgress(lesson.slug, 'in_progress')
+    }
   }, [code, isHydrated, storageKey])
 
   function handleReset() {
@@ -83,7 +90,15 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
 
       const payload = (await response.json()) as ExecutionResult
 
-      setResult(mode === 'check' ? formatCheckResult(payload) : payload)
+      const nextResult = mode === 'check' ? formatCheckResult(payload) : payload
+
+      setResult(nextResult)
+
+      if (mode === 'check' && nextResult.passed) {
+        updateLessonProgress(lesson.slug, 'completed')
+      } else if (mode === 'check' && nextResult.status !== 'running') {
+        updateLessonProgress(lesson.slug, 'in_progress')
+      }
     } catch {
       setResult({
         status: 'error',
@@ -106,6 +121,7 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
           <h2>{lesson.exercise.fileName}</h2>
         </div>
         <div className="workbench-status">
+          <span>{progress[lesson.slug]?.status ?? 'not_started'}</span>
           <span>{result.status}</span>
           <span>LSP next</span>
         </div>
