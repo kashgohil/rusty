@@ -188,6 +188,13 @@
     transform: translateY(-1px);
   }
 
+  .primary-pill:disabled,
+  .ghost-pill:disabled {
+    cursor: not-allowed;
+    opacity: 0.52;
+    transform: none;
+  }
+
   .hero-stats {
     display: grid;
     gap: 1rem;

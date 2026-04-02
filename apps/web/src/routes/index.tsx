@@ -1,13 +1,21 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { curriculum, stageOrder } from '@rust-learning/lesson-content'
+import { useLessonProgress } from '~/utils/useLessonProgress'
 
 export const Route = createFileRoute('/')({
   component: HomePage,
 })
 
 function HomePage() {
+  const progress = useLessonProgress()
   const totalLessons = curriculum.length
   const totalStages = stageOrder.length
+  const completedLessons = curriculum.filter(
+    (lesson) => progress[lesson.slug]?.status === 'completed',
+  ).length
+  const startedLessons = curriculum.filter(
+    (lesson) => progress[lesson.slug]?.status && progress[lesson.slug]?.status !== 'not_started',
+  ).length
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-12 px-6 pb-24 pt-10">
@@ -42,8 +50,8 @@ function HomePage() {
             <p>curriculum stages from basics to practical projects</p>
           </div>
           <div>
-            <span>IDE</span>
-            <p>Monaco shell planned first, then compile/run, then LSP</p>
+            <span>{String(completedLessons).padStart(2, '0')}</span>
+            <p>{startedLessons} started, {completedLessons} completed locally in this browser</p>
           </div>
         </aside>
       </section>
