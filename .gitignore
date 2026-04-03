@@ -8,3 +8,4 @@ node_modules
 dist
 coverage
 target
+apps/api/data/progress.json
