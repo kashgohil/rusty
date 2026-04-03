@@ -7,11 +7,7 @@ use axum::{
 };
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::{
-    net::SocketAddr,
-    path::Path,
-    time::{Duration, SystemTime, UNIX_EPOCH},
-};
+use std::{net::SocketAddr, path::PathBuf, time::Duration};
 use tempfile::tempdir;
 use tokio::{
     fs,
@@ -33,9 +29,43 @@ struct AppState {
 #[serde(rename_all = "camelCase")]
 struct ExecutionRequest {
     lesson_slug: String,
-    file_name: String,
-    code: String,
+    entry_file: String,
+    files: Vec<LessonFile>,
     mode: ExecutionMode,
+    validation: LessonValidation,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LessonFile {
+    path: String,
+    content: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum LessonValidation {
+    Heuristic { checks: Vec<ExerciseCheck> },
+    CargoTest {
+        #[serde(rename = "testFiles")]
+        test_files: Vec<LessonFile>,
+    },
+}
+
+#[derive(Debug, Deserialize)]
+struct ExerciseCheck {
+    #[serde(rename = "type")]
+    check_type: CheckType,
+    value: String,
+    message: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum CheckType {
+    Contains,
+    NotContains,
+    Regex,
 }
 
 #[derive(Debug, Serialize)]
@@ -110,19 +140,17 @@ async fn run_code(
     State(state): State<AppState>,
     Json(payload): Json<ExecutionRequest>,
 ) -> Result<Json<ExecutionResult>, RunnerError> {
-    if payload.code.trim().is_empty() {
+    if payload.files.is_empty() {
         return Ok(Json(ExecutionResult {
             status: ExecutionStatus::Error,
-            headline: "No code to compile".to_string(),
-            output: "The file is empty. Restore the starter or write a small Rust program first."
-                .to_string(),
+            headline: "No files to compile".to_string(),
+            output: "The lesson request did not include any source files.".to_string(),
             passed: Some(false),
             checks: None,
         }));
     }
 
     let result = execute_rust_program(&payload, state.execution_timeout).await?;
-
     Ok(Json(result))
 }
 
@@ -132,21 +160,27 @@ async fn execute_rust_program(
 ) -> Result<ExecutionResult, RunnerError> {
     let temp_dir = tempdir().map_err(RunnerError::internal)?;
     let workspace = temp_dir.path();
-    let source_path = workspace.join("src").join(normalize_file_name(&payload.file_name));
 
-    fs::create_dir_all(workspace.join("src"))
+    fs::write(
+        workspace.join("Cargo.toml"),
+        cargo_manifest(&payload.lesson_slug, &payload.entry_file),
+    )
+    .await
+    .map_err(RunnerError::internal)?;
+
+    write_lesson_files(workspace, &payload.files)
         .await
         .map_err(RunnerError::internal)?;
-    fs::write(workspace.join("Cargo.toml"), cargo_manifest(&payload.lesson_slug))
-        .await
-        .map_err(RunnerError::internal)?;
-    fs::write(&source_path, &payload.code)
-        .await
-        .map_err(RunnerError::internal)?;
 
-    let mut command = Command::new("cargo");
-    command.arg("run").arg("--quiet").current_dir(workspace);
+    if payload.mode == ExecutionMode::Check {
+        if let LessonValidation::CargoTest { test_files } = &payload.validation {
+            write_lesson_files(workspace, test_files)
+                .await
+                .map_err(RunnerError::internal)?;
+        }
+    }
 
+    let mut command = build_command(payload, workspace);
     let output = timeout(execution_timeout, command.output())
         .await
         .map_err(RunnerError::timeout)?
@@ -162,33 +196,24 @@ async fn execute_rust_program(
             stdout
         };
 
-        if payload.mode == ExecutionMode::Check {
-            let checks = evaluate_checks(&payload.lesson_slug, &payload.code);
-            let passed = checks.iter().all(|check| check.passed);
+        let checks = if payload.mode == ExecutionMode::Check {
+            Some(evaluate_checks(payload))
+        } else {
+            None
+        };
 
-            return Ok(ExecutionResult {
-                status: if passed {
-                    ExecutionStatus::Success
-                } else {
-                    ExecutionStatus::Error
-                },
-                headline: if passed {
-                    "Lesson validation passed".to_string()
-                } else {
-                    "Lesson validation failed".to_string()
-                },
-                output: rendered_output,
-                passed: Some(passed),
-                checks: Some(checks),
-            });
-        }
+        let passed = checks.as_ref().map(|items| items.iter().all(|item| item.passed));
 
         return Ok(ExecutionResult {
-            status: ExecutionStatus::Success,
-            headline: "Runner executed successfully".to_string(),
+            status: if passed.unwrap_or(true) {
+                ExecutionStatus::Success
+            } else {
+                ExecutionStatus::Error
+            },
+            headline: result_headline(payload, passed),
             output: rendered_output,
-            passed: None,
-            checks: None,
+            passed,
+            checks,
         });
     }
 
@@ -204,74 +229,89 @@ async fn execute_rust_program(
         status: ExecutionStatus::Error,
         headline: "Runner returned a compile or runtime error".to_string(),
         output: combined_output,
-        passed: Some(false),
-        checks: if payload.mode == ExecutionMode::Check {
-            Some(evaluate_checks(&payload.lesson_slug, &payload.code))
+        passed: if payload.mode == ExecutionMode::Check {
+            Some(false)
         } else {
             None
         },
+        checks: None,
     })
 }
 
-fn evaluate_checks(lesson_slug: &str, code: &str) -> Vec<CheckResult> {
-    match lesson_slug {
-        "hello-rust" => vec![
-            contains_regex(code, r"println!\s*\(", "Use at least one println! call in the program."),
-            contains_text(code, "Reason:", "Print a second line that includes the word `Reason:`."),
-        ],
-        "ownership-basics" => vec![
-            not_contains_text(
-                code,
-                "let moved = message;",
-                "Do not keep the original move line unchanged.",
-            ),
-            contains_regex(
-                code,
-                r"(clone\s*\(|&message|ref\s+message)",
-                "Use borrowing or cloning instead of moving the value unchanged.",
-            ),
-        ],
-        "borrowing-and-references" => vec![
-            contains_regex(
-                code,
-                r"fn\s+print_length\s*\(\s*text\s*:\s*&(?:String|str)",
-                "Change print_length to borrow the string instead of taking ownership.",
-            ),
-            contains_text(
-                code,
-                r#"println!("{note}")"#,
-                "Keep using `note` after the helper call.",
-            ),
-        ],
-        "structs-and-methods" => vec![
-            contains_text(code, "impl Lesson", "Add an impl block for Lesson."),
-            contains_regex(
-                code,
-                r"fn\s+[a-zA-Z_][a-zA-Z0-9_]*\s*\(\s*&self",
-                "Add at least one method that takes `&self`.",
-            ),
-        ],
-        "results-and-errors" => vec![
-            contains_regex(code, r"->\s*Result<", "Return a Result from parse_age."),
-            not_contains_text(
-                code,
-                "unwrap()",
-                "Remove unwrap-driven control flow from the lesson solution.",
-            ),
-        ],
-        "build-a-cli" => vec![
-            contains_regex(
-                code,
-                r"(std::env::args\(|env::args\()",
-                "Read CLI arguments from std::env::args.",
-            ),
-            contains_regex(
-                code,
-                r"(std::fs::read_to_string\(|fs::read_to_string\()",
-                "Read file contents from disk.",
-            ),
-        ],
-        _ => Vec::new(),
+async fn write_lesson_files(root: &std::path::Path, files: &[LessonFile]) -> Result<(), std::io::Error> {
+    for file in files {
+        let normalized = normalize_relative_path(&file.path);
+        let full_path = root.join(normalized);
+
+        if let Some(parent) = full_path.parent() {
+            fs::create_dir_all(parent).await?;
+        }
+
+        fs::write(full_path, &file.content).await?;
+    }
+
+    Ok(())
+}
+
+fn build_command(payload: &ExecutionRequest, workspace: &std::path::Path) -> Command {
+    let mut command = Command::new("cargo");
+    command.current_dir(workspace);
+
+    match payload.mode {
+        ExecutionMode::Run => {
+            command.arg("run").arg("--quiet");
+        }
+        ExecutionMode::Check => match payload.validation {
+            LessonValidation::Heuristic { .. } => {
+                command.arg("run").arg("--quiet");
+            }
+            LessonValidation::CargoTest { .. } => {
+                command.arg("test").arg("--quiet");
+            }
+        },
+    }
+
+    command
+}
+
+fn evaluate_checks(payload: &ExecutionRequest) -> Vec<CheckResult> {
+    match &payload.validation {
+        LessonValidation::Heuristic { checks } => {
+            let joined_code = payload
+                .files
+                .iter()
+                .map(|file| format!("// {}\n{}", file.path, file.content))
+                .collect::<Vec<_>>()
+                .join("\n\n");
+
+            checks
+                .iter()
+                .map(|check| match check.check_type {
+                    CheckType::Contains => contains_text(&joined_code, &check.value, &check.message),
+                    CheckType::NotContains => {
+                        not_contains_text(&joined_code, &check.value, &check.message)
+                    }
+                    CheckType::Regex => contains_regex(&joined_code, &check.value, &check.message),
+                })
+                .collect()
+        }
+        LessonValidation::CargoTest { .. } => vec![CheckResult {
+            passed: true,
+            message: "Hidden cargo tests passed.".to_string(),
+        }],
+    }
+}
+
+fn result_headline(payload: &ExecutionRequest, passed: Option<bool>) -> String {
+    match payload.mode {
+        ExecutionMode::Run => "Runner executed successfully".to_string(),
+        ExecutionMode::Check => {
+            if passed.unwrap_or(true) {
+                "Lesson validation passed".to_string()
+            } else {
+                "Lesson validation failed".to_string()
+            }
+        }
     }
 }
 
@@ -300,52 +340,47 @@ fn contains_regex(code: &str, pattern: &str, message: &str) -> CheckResult {
     }
 }
 
-fn cargo_manifest(lesson_slug: &str) -> String {
-    format!(
-        r#"[package]
-name = "lesson-{slug}"
-version = "0.1.0"
-edition = "2024"
+fn cargo_manifest(lesson_slug: &str, entry_file: &str) -> String {
+    let package_name = sanitize_package_name(lesson_slug);
+    let mut manifest = format!(
+        "[package]\nname = \"{package_name}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\n"
+    );
 
-[dependencies]
-"#,
-        slug = sanitize_package_name(lesson_slug)
-    )
-}
+    if entry_file != "src/main.rs" {
+        manifest.push_str(&format!("\n[[bin]]\nname = \"{package_name}-bin\"\npath = \"src/main.rs\"\n"));
+    }
 
-fn normalize_file_name(file_name: &str) -> &str {
-    let candidate = Path::new(file_name)
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("main.rs");
-
-    if candidate.is_empty() { "main.rs" } else { candidate }
+    manifest
 }
 
 fn sanitize_package_name(input: &str) -> String {
-    let mut rendered = String::with_capacity(input.len());
+    input
+        .chars()
+        .map(|char| {
+            if char.is_ascii_alphanumeric() {
+                char.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>()
+        .trim_matches('-')
+        .to_string()
+}
 
-    for char in input.chars() {
-        if char.is_ascii_alphanumeric() {
-            rendered.push(char.to_ascii_lowercase());
-        } else {
-            rendered.push('-');
+fn normalize_relative_path(path: &str) -> PathBuf {
+    let mut clean = PathBuf::new();
+
+    for component in PathBuf::from(path).components() {
+        use std::path::Component;
+
+        match component {
+            Component::Normal(part) => clean.push(part),
+            _ => continue,
         }
     }
 
-    let rendered = rendered.trim_matches('-');
-
-    if rendered.is_empty() {
-        format!(
-            "lesson-{}",
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs()
-        )
-    } else {
-        rendered.to_string()
-    }
+    clean
 }
 
 struct RunnerError {
