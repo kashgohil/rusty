@@ -5,38 +5,52 @@ import type {
   ExecutionRequest,
   ExecutionResult,
   Lesson,
+  LessonFile,
 } from '@rust-learning/shared-types'
 import { useEffect, useMemo, useState } from 'react'
 import { updateLessonProgress } from '~/utils/progress'
 import { useLessonProgress } from '~/utils/useLessonProgress'
+
 const RUNNER_URL = 'http://127.0.0.1:9091'
 
 export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
   const storageKey = useMemo(
-    () => `rust-learning:lesson:${lesson.slug}:code`,
+    () => `rust-learning:lesson:${lesson.slug}:files`,
     [lesson.slug],
   )
-
-  const [code, setCode] = useState(lesson.exercise.starterCode)
-  const [isHydrated, setIsHydrated] = useState(false)
   const progress = useLessonProgress()
+  const [files, setFiles] = useState<LessonFile[]>(lesson.exercise.files)
+  const [activePath, setActivePath] = useState(lesson.exercise.entryFile)
+  const [isHydrated, setIsHydrated] = useState(false)
   const [result, setResult] = useState<ExecutionResult>({
     status: 'idle',
     headline: 'Ready to run',
     output:
-      'Use the editor to change the lesson code, then run it through the local Rust runner service.',
+      'This lesson now supports multiple files. Edit any visible file, then run or check the full workspace.',
   })
   const [activeAction, setActiveAction] = useState<ExecutionMode | null>(null)
+
+  const activeFile =
+    files.find((file) => file.path === activePath) ??
+    files.find((file) => file.path === lesson.exercise.entryFile) ??
+    files[0]
 
   useEffect(() => {
     if (typeof window === 'undefined') {
       return
     }
 
-    const savedCode = window.localStorage.getItem(storageKey)
+    const raw = window.localStorage.getItem(storageKey)
 
-    if (savedCode) {
-      setCode(savedCode)
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as LessonFile[]
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setFiles(parsed)
+        }
+      } catch {
+        window.localStorage.removeItem(storageKey)
+      }
     }
 
     setIsHydrated(true)
@@ -47,31 +61,38 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
       return
     }
 
-    window.localStorage.setItem(storageKey, code)
+    window.localStorage.setItem(storageKey, JSON.stringify(files))
 
-    if (code !== lesson.exercise.starterCode) {
+    if (!areFilesEqual(files, lesson.exercise.files)) {
       updateLessonProgress(lesson.slug, 'in_progress')
     }
-  }, [code, isHydrated, storageKey])
+  }, [files, isHydrated, lesson.exercise.files, lesson.slug, storageKey])
 
   function handleReset() {
-    setCode(lesson.exercise.starterCode)
+    setFiles(lesson.exercise.files)
+    setActivePath(lesson.exercise.entryFile)
     setResult({
       status: 'idle',
       headline: 'Starter restored',
-      output: 'The lesson code has been reset to its original starter template.',
+      output: 'Every visible file has been reset to the original lesson workspace.',
     })
+  }
+
+  function updateFile(path: string, content: string) {
+    setFiles((current) =>
+      current.map((file) => (file.path === path ? { ...file, content } : file)),
+    )
   }
 
   async function execute(mode: ExecutionMode) {
     setActiveAction(mode)
     setResult({
       status: 'running',
-      headline: mode === 'run' ? 'Sending code to runner' : 'Checking lesson answer',
+      headline: mode === 'run' ? 'Sending workspace to runner' : 'Checking lesson workspace',
       output:
         mode === 'run'
-          ? `POST ${RUNNER_URL}/run\nPreparing temporary Cargo workspace...`
-          : `POST ${RUNNER_URL}/run\nCompiling code and evaluating lesson checks...`,
+          ? `POST ${RUNNER_URL}/run\nPackaging ${files.length} lesson files for cargo run...`
+          : `POST ${RUNNER_URL}/run\nPackaging ${files.length} lesson files for validation...`,
     })
 
     try {
@@ -82,14 +103,14 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
         },
         body: JSON.stringify({
           lessonSlug: lesson.slug,
-          fileName: lesson.exercise.fileName,
-          code,
+          entryFile: lesson.exercise.entryFile,
+          files,
           mode,
+          validation: lesson.exercise.validation,
         } satisfies ExecutionRequest),
       })
 
       const payload = (await response.json()) as ExecutionResult
-
       const nextResult = mode === 'check' ? formatCheckResult(payload) : payload
 
       setResult(nextResult)
@@ -118,12 +139,12 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
       <div className="workbench-header">
         <div>
           <p className="eyebrow">Lesson IDE</p>
-          <h2>{lesson.exercise.fileName}</h2>
+          <h2>{activeFile?.path ?? lesson.exercise.entryFile}</h2>
         </div>
         <div className="workbench-status">
           <span>{progress[lesson.slug]?.status ?? 'not_started'}</span>
           <span>{result.status}</span>
-          <span>LSP next</span>
+          <span>{files.length} files</span>
         </div>
       </div>
 
@@ -151,48 +172,71 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
             onClick={handleReset}
             type="button"
           >
-            Reset starter
+            Reset workspace
           </button>
         </div>
         <p className="workbench-note">
-          Code is saved per lesson in local browser storage. Runner listens on `9091`.
+          Code is saved per lesson workspace. Multi-file payloads go to runner `9091`.
         </p>
       </div>
 
-      <div className="editor-shell">
-        <Editor
-          beforeMount={(monaco) => {
-            monaco.editor.defineTheme('rust-learning-workbench', {
-              base: 'vs-dark',
-              inherit: true,
-              rules: [],
-              colors: {
-                'editor.background': '#0d1416',
-                'editor.lineHighlightBackground': '#162125',
-                'editorLineNumber.foreground': '#7b7d71',
-                'editorCursor.foreground': '#f1a63b',
-                'editor.selectionBackground': '#27464f',
-              },
-            })
-          }}
-          defaultLanguage="rust"
-          height="420px"
-          loading={<div className="editor-loading">Loading editor...</div>}
-          onChange={(value) => setCode(value ?? '')}
-          options={{
-            automaticLayout: true,
-            fontFamily: 'IBM Plex Mono, monospace',
-            fontSize: 14,
-            lineNumbersMinChars: 3,
-            minimap: { enabled: false },
-            padding: { top: 18, bottom: 18 },
-            scrollBeyondLastLine: false,
-            smoothScrolling: true,
-            wordWrap: 'on',
-          }}
-          theme="rust-learning-workbench"
-          value={code}
-        />
+      <div className="editor-layout">
+        <aside className="file-sidebar">
+          <p className="file-sidebar-label">Workspace files</p>
+          <div className="file-list">
+            {files.map((file) => (
+              <button
+                className={`file-tab ${file.path === activeFile?.path ? 'is-active' : ''}`}
+                key={file.path}
+                onClick={() => setActivePath(file.path)}
+                type="button"
+              >
+                <span>{file.path}</span>
+                <small>{file.editable === false ? 'hidden source' : 'editable'}</small>
+              </button>
+            ))}
+          </div>
+        </aside>
+
+        <div className="editor-shell">
+          {activeFile ? (
+            <Editor
+              beforeMount={(monaco) => {
+                monaco.editor.defineTheme('rust-learning-workbench', {
+                  base: 'vs-dark',
+                  inherit: true,
+                  rules: [],
+                  colors: {
+                    'editor.background': '#0d1416',
+                    'editor.lineHighlightBackground': '#162125',
+                    'editorLineNumber.foreground': '#7b7d71',
+                    'editorCursor.foreground': '#f1a63b',
+                    'editor.selectionBackground': '#27464f',
+                  },
+                })
+              }}
+              defaultLanguage="rust"
+              height="420px"
+              loading={<div className="editor-loading">Loading editor...</div>}
+              onChange={(value) => updateFile(activeFile.path, value ?? '')}
+              options={{
+                automaticLayout: true,
+                fontFamily: 'IBM Plex Mono, monospace',
+                fontSize: 14,
+                lineNumbersMinChars: 3,
+                minimap: { enabled: false },
+                padding: { top: 18, bottom: 18 },
+                readOnly: activeFile.editable === false,
+                scrollBeyondLastLine: false,
+                smoothScrolling: true,
+                wordWrap: 'on',
+              }}
+              path={activeFile.path}
+              theme="rust-learning-workbench"
+              value={activeFile.content}
+            />
+          ) : null}
+        </div>
       </div>
 
       <div className="output-panel">
@@ -237,4 +281,19 @@ function renderChecks(checks: ExecutionCheckResult[] | undefined) {
   return checks
     .map((check) => `${check.passed ? 'PASS' : 'FAIL'}: ${check.message}`)
     .join('\n')
+}
+
+function areFilesEqual(left: LessonFile[], right: LessonFile[]) {
+  if (left.length !== right.length) {
+    return false
+  }
+
+  return left.every((file, index) => {
+    const other = right[index]
+    return (
+      file.path === other?.path &&
+      file.content === other?.content &&
+      file.editable === other?.editable
+    )
+  })
 }

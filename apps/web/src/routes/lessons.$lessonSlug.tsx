@@ -37,6 +37,17 @@ function LessonDetailPage() {
           <h2>Practice prompt</h2>
           <p>{lesson.exercise.prompt}</p>
         </div>
+        <div className="objective-block">
+          <h2>Workspace shape</h2>
+          <ul>
+            {lesson.exercise.files.map((file) => (
+              <li key={file.path}>
+                {file.path}
+                {file.editable === false ? ' (hidden validation file)' : ''}
+              </li>
+            ))}
+          </ul>
+        </div>
       </article>
 
       <LessonWorkbench lesson={lesson} />
