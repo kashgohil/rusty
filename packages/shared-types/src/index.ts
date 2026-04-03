@@ -80,3 +80,8 @@ export interface LessonProgressEntry {
 }
 
 export type LessonProgressMap = Record<string, LessonProgressEntry>
+
+export interface LessonProgressUpdateRequest {
+  lessonSlug: string
+  status: LessonProgressStatus
+}
