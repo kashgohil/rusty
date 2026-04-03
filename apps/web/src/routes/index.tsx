@@ -1,19 +1,20 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
-import { curriculum, stageOrder } from '@rust-learning/lesson-content'
 import { useLessonProgress } from '~/utils/useLessonProgress'
+import { useLessons } from '~/utils/useLessons'
 
 export const Route = createFileRoute('/')({
   component: HomePage,
 })
 
 function HomePage() {
-  const progress = useLessonProgress()
-  const totalLessons = curriculum.length
-  const totalStages = stageOrder.length
-  const completedLessons = curriculum.filter(
+  const { lessons } = useLessons()
+  const { progress } = useLessonProgress()
+  const totalLessons = lessons.length
+  const totalStages = new Set(lessons.map((lesson) => lesson.stage)).size
+  const completedLessons = lessons.filter(
     (lesson) => progress[lesson.slug]?.status === 'completed',
   ).length
-  const startedLessons = curriculum.filter(
+  const startedLessons = lessons.filter(
     (lesson) => progress[lesson.slug]?.status && progress[lesson.slug]?.status !== 'not_started',
   ).length
 
@@ -51,7 +52,7 @@ function HomePage() {
           </div>
           <div>
             <span>{String(completedLessons).padStart(2, '0')}</span>
-            <p>{startedLessons} started, {completedLessons} completed locally in this browser</p>
+            <p>{startedLessons} started, {completedLessons} completed through the API</p>
           </div>
         </aside>
       </section>

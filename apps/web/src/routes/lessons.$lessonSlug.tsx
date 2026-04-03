@@ -1,6 +1,6 @@
 import { createFileRoute, notFound } from '@tanstack/react-router'
-import { getLessonBySlug } from '@rust-learning/lesson-content'
 import { LessonWorkbench } from '~/components/LessonWorkbench'
+import { useLesson } from '~/utils/useLessons'
 
 export const Route = createFileRoute('/lessons/$lessonSlug')({
   component: LessonDetailPage,
@@ -8,7 +8,18 @@ export const Route = createFileRoute('/lessons/$lessonSlug')({
 
 function LessonDetailPage() {
   const { lessonSlug } = Route.useParams()
-  const lesson = getLessonBySlug(lessonSlug)
+  const { lesson, isLoading } = useLesson(lessonSlug)
+
+  if (isLoading) {
+    return (
+      <section className="lesson-detail-shell">
+        <article className="lesson-meta-panel">
+          <p className="eyebrow">Loading</p>
+          <h1>Loading lesson workspace...</h1>
+        </article>
+      </section>
+    )
+  }
 
   if (!lesson) {
     throw notFound()

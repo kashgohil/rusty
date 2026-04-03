@@ -1,19 +1,21 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
-import { curriculum, stageOrder } from '@rust-learning/lesson-content'
 import { useLessonProgress } from '~/utils/useLessonProgress'
+import { useLessons } from '~/utils/useLessons'
 
 export const Route = createFileRoute('/lessons/')({
   component: LessonsIndexPage,
 })
 
 function LessonsIndexPage() {
-  const progress = useLessonProgress()
+  const { progress } = useLessonProgress()
+  const { lessons } = useLessons()
+  const stageOrder = Array.from(new Set(lessons.map((lesson) => lesson.stage)))
 
   return (
     <div className="space-y-10">
       {stageOrder.map((stage) => {
-        const lessons = curriculum.filter((lesson) => lesson.stage === stage)
-        const completedCount = lessons.filter(
+        const stageLessons = lessons.filter((lesson) => lesson.stage === stage)
+        const completedCount = stageLessons.filter(
           (lesson) => progress[lesson.slug]?.status === 'completed',
         ).length
 
@@ -23,11 +25,11 @@ function LessonsIndexPage() {
               <p className="eyebrow">{stage}</p>
               <span>
                 {String(completedCount).padStart(2, '0')}/
-                {String(lessons.length).padStart(2, '0')} complete
+                {String(stageLessons.length).padStart(2, '0')} complete
               </span>
             </div>
             <div className="lesson-grid">
-              {lessons.map((lesson) => (
+              {stageLessons.map((lesson) => (
                 <Link className="lesson-card" key={lesson.slug} params={{ lessonSlug: lesson.slug }} to="/lessons/$lessonSlug">
                   <div className="lesson-card-top">
                     <span>{lesson.order.toString().padStart(2, '0')}</span>

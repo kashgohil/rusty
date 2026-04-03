@@ -8,7 +8,6 @@ import type {
   LessonFile,
 } from '@rust-learning/shared-types'
 import { useEffect, useMemo, useState } from 'react'
-import { updateLessonProgress } from '~/utils/progress'
 import { useLessonProgress } from '~/utils/useLessonProgress'
 
 const RUNNER_URL = 'http://127.0.0.1:9091'
@@ -18,7 +17,7 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
     () => `rust-learning:lesson:${lesson.slug}:files`,
     [lesson.slug],
   )
-  const progress = useLessonProgress()
+  const { progress, persistLessonProgress } = useLessonProgress()
   const [files, setFiles] = useState<LessonFile[]>(lesson.exercise.files)
   const [activePath, setActivePath] = useState(lesson.exercise.entryFile)
   const [isHydrated, setIsHydrated] = useState(false)
@@ -64,9 +63,9 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
     window.localStorage.setItem(storageKey, JSON.stringify(files))
 
     if (!areFilesEqual(files, lesson.exercise.files)) {
-      updateLessonProgress(lesson.slug, 'in_progress')
+      void persistLessonProgress(lesson.slug, 'in_progress')
     }
-  }, [files, isHydrated, lesson.exercise.files, lesson.slug, storageKey])
+  }, [files, isHydrated, lesson.exercise.files, lesson.slug, storageKey, persistLessonProgress])
 
   function handleReset() {
     setFiles(lesson.exercise.files)
@@ -116,9 +115,9 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
       setResult(nextResult)
 
       if (mode === 'check' && nextResult.passed) {
-        updateLessonProgress(lesson.slug, 'completed')
+        await persistLessonProgress(lesson.slug, 'completed')
       } else if (mode === 'check' && nextResult.status !== 'running') {
-        updateLessonProgress(lesson.slug, 'in_progress')
+        await persistLessonProgress(lesson.slug, 'in_progress')
       }
     } catch {
       setResult({
