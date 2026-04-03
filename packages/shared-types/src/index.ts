@@ -4,20 +4,36 @@ export type LessonStage =
   | 'Data Modeling'
   | 'Practical Rust'
 
-export interface LessonExercise {
-  fileName: string
-  prompt: string
-  starterCode: string
-  hint: string
-  success: string
-  sampleOutput?: string
-  checks: ExerciseCheck[]
-}
-
 export interface ExerciseCheck {
   type: 'contains' | 'not_contains' | 'regex'
   value: string
   message: string
+}
+
+export interface LessonFile {
+  path: string
+  content: string
+  editable?: boolean
+}
+
+export type LessonValidation =
+  | {
+      kind: 'heuristic'
+      checks: ExerciseCheck[]
+    }
+  | {
+      kind: 'cargo_test'
+      testFiles: LessonFile[]
+    }
+
+export interface LessonExercise {
+  entryFile: string
+  files: LessonFile[]
+  prompt: string
+  hint: string
+  success: string
+  sampleOutput?: string
+  validation: LessonValidation
 }
 
 export interface Lesson {
@@ -37,9 +53,10 @@ export type ExecutionMode = 'run' | 'check'
 
 export interface ExecutionRequest {
   lessonSlug: string
-  fileName: string
-  code: string
+  entryFile: string
+  files: LessonFile[]
   mode: ExecutionMode
+  validation: LessonValidation
 }
 
 export interface ExecutionResult {
