@@ -22,23 +22,32 @@ export const curriculum: Lesson[] = [
       'Get comfortable editing and rerunning small examples',
     ],
     exercise: {
-      fileName: 'main.rs',
-      prompt: 'Print your name and one reason you want to learn Rust.',
-      starterCode: `fn main() {\n    let learner = "friend";\n    println!("Hello, {learner}!");\n}\n`,
-      hint: 'Change the string value and add a second println! line.',
-      success: 'The program compiles and prints two custom lines of output.',
-      checks: [
+      entryFile: 'src/main.rs',
+      files: [
         {
-          type: 'regex',
-          value: 'println!\\s*\\(',
-          message: 'Use at least one println! call in the program.',
-        },
-        {
-          type: 'contains',
-          value: 'Reason:',
-          message: 'Print a second line that includes the word `Reason:`.',
+          path: 'src/main.rs',
+          content:
+            'fn main() {\n    let learner = "friend";\n    println!("Hello, {learner}!");\n}\n',
         },
       ],
+      prompt: 'Print your name and one reason you want to learn Rust.',
+      hint: 'Change the string value and add a second println! line.',
+      success: 'The program compiles and prints two custom lines of output.',
+      validation: {
+        kind: 'heuristic',
+        checks: [
+          {
+            type: 'regex',
+            value: 'println!\\s*\\(',
+            message: 'Use at least one println! call in the program.',
+          },
+          {
+            type: 'contains',
+            value: 'Reason:',
+            message: 'Print a second line that includes the word `Reason:`.',
+          },
+        ],
+      },
     },
   },
   {
@@ -55,23 +64,32 @@ export const curriculum: Lesson[] = [
       'Use cloning intentionally instead of accidentally',
     ],
     exercise: {
-      fileName: 'main.rs',
-      prompt: 'Fix the moved-value error without removing the second print statement.',
-      starterCode: `fn main() {\n    let message = String::from("ownership matters");\n    let moved = message;\n\n    println!("{moved}");\n    println!("{message}");\n}\n`,
-      hint: 'Either borrow or clone. Pick the reasoned tradeoff, not a random fix.',
-      success: 'The learner can explain why the chosen fix works.',
-      checks: [
+      entryFile: 'src/main.rs',
+      files: [
         {
-          type: 'not_contains',
-          value: 'let moved = message;',
-          message: 'Do not keep the original move line unchanged.',
-        },
-        {
-          type: 'regex',
-          value: '(clone\\s*\\(|&message|ref\\s+message)',
-          message: 'Use borrowing or cloning instead of moving the value unchanged.',
+          path: 'src/main.rs',
+          content:
+            'fn main() {\n    let message = String::from("ownership matters");\n    let moved = message;\n\n    println!("{moved}");\n    println!("{message}");\n}\n',
         },
       ],
+      prompt: 'Fix the moved-value error without removing the second print statement.',
+      hint: 'Either borrow or clone. Pick the reasoned tradeoff, not a random fix.',
+      success: 'The learner can explain why the chosen fix works.',
+      validation: {
+        kind: 'heuristic',
+        checks: [
+          {
+            type: 'not_contains',
+            value: 'let moved = message;',
+            message: 'Do not keep the original move line unchanged.',
+          },
+          {
+            type: 'regex',
+            value: '(clone\\s*\\(|&message|ref\\s+message)',
+            message: 'Use borrowing or cloning instead of moving the value unchanged.',
+          },
+        ],
+      },
     },
   },
   {
@@ -88,23 +106,32 @@ export const curriculum: Lesson[] = [
       'Avoid multiple mutable borrows at the same time',
     ],
     exercise: {
-      fileName: 'main.rs',
-      prompt: 'Update the helper function so it can inspect a String without taking ownership.',
-      starterCode: `fn print_length(text: String) {\n    println!("Length: {}", text.len());\n}\n\nfn main() {\n    let note = String::from("borrow me");\n    print_length(note);\n    println!("{note}");\n}\n`,
-      hint: 'The function does not need ownership. Its parameter type should say that.',
-      success: 'The helper compiles and the original String remains usable afterward.',
-      checks: [
+      entryFile: 'src/main.rs',
+      files: [
         {
-          type: 'regex',
-          value: 'fn\\s+print_length\\s*\\(\\s*text\\s*:\\s*&(?:String|str)',
-          message: 'Change print_length to borrow the string instead of taking ownership.',
-        },
-        {
-          type: 'contains',
-          value: 'println!("{note}")',
-          message: 'Keep using `note` after the helper call.',
+          path: 'src/main.rs',
+          content:
+            'fn print_length(text: String) {\n    println!("Length: {}", text.len());\n}\n\nfn main() {\n    let note = String::from("borrow me");\n    print_length(note);\n    println!("{note}");\n}\n',
         },
       ],
+      prompt: 'Update the helper function so it can inspect a String without taking ownership.',
+      hint: 'The function does not need ownership. Its parameter type should say that.',
+      success: 'The helper compiles and the original String remains usable afterward.',
+      validation: {
+        kind: 'heuristic',
+        checks: [
+          {
+            type: 'regex',
+            value: 'fn\\s+print_length\\s*\\(\\s*text\\s*:\\s*&(?:String|str)',
+            message: 'Change print_length to borrow the string instead of taking ownership.',
+          },
+          {
+            type: 'contains',
+            value: 'println!("{note}")',
+            message: 'Keep using `note` after the helper call.',
+          },
+        ],
+      },
     },
   },
   {
@@ -121,23 +148,33 @@ export const curriculum: Lesson[] = [
       'Use self to keep data and behavior aligned',
     ],
     exercise: {
-      fileName: 'main.rs',
-      prompt: 'Add a method that returns a formatted summary of the lesson.',
-      starterCode: `struct Lesson {\n    title: String,\n    minutes: u32,\n}\n\nfn main() {\n    let lesson = Lesson {\n        title: String::from("Structs"),\n        minutes: 45,\n    };\n\n    println!("TODO");\n}\n`,
-      hint: 'The logic belongs on the type. Use an impl block.',
-      success: 'The learner can call a method on Lesson and print a useful summary.',
-      checks: [
+      entryFile: 'src/lib.rs',
+      files: [
         {
-          type: 'contains',
-          value: 'impl Lesson',
-          message: 'Add an impl block for Lesson.',
+          path: 'src/lib.rs',
+          content:
+            'pub struct Lesson {\n    pub title: String,\n    pub minutes: u32,\n}\n',
         },
         {
-          type: 'regex',
-          value: 'fn\\s+[a-zA-Z_][a-zA-Z0-9_]*\\s*\\(\\s*&self',
-          message: 'Add at least one method that takes `&self`.',
+          path: 'src/main.rs',
+          content:
+            'use structs_and_methods::Lesson;\n\nfn main() {\n    let lesson = Lesson {\n        title: String::from("Structs"),\n        minutes: 45,\n    };\n\n    println!("TODO: {}", lesson.title);\n}\n',
         },
       ],
+      prompt: 'Add a method on Lesson that returns a formatted summary, then print it from main.',
+      hint: 'The logic belongs on the type. Implement it in lib.rs, then call it from main.rs.',
+      success: 'The learner can call a method on Lesson and print a useful summary.',
+      validation: {
+        kind: 'cargo_test',
+        testFiles: [
+          {
+            path: 'tests/lesson_summary.rs',
+            content:
+              'use structs_and_methods::Lesson;\n\n#[test]\nfn summary_mentions_title_and_minutes() {\n    let lesson = Lesson {\n        title: String::from("Structs"),\n        minutes: 45,\n    };\n\n    let summary = lesson.summary();\n    assert!(summary.contains("Structs"));\n    assert!(summary.contains("45"));\n}\n',
+            editable: false,
+          },
+        ],
+      },
     },
   },
   {
@@ -154,23 +191,32 @@ export const curriculum: Lesson[] = [
       'Differentiate recoverable and unrecoverable errors',
     ],
     exercise: {
-      fileName: 'main.rs',
-      prompt: 'Return a Result from parse_age and handle bad input in main.',
-      starterCode: `fn parse_age(input: &str) -> u8 {\n    input.parse().unwrap()\n}\n\nfn main() {\n    let age = parse_age("twelve");\n    println!("Age: {age}");\n}\n`,
-      hint: 'Replace unwrap-driven control flow with an explicit Result path.',
-      success: 'Bad input no longer crashes the program and the outcome is explained clearly.',
-      checks: [
+      entryFile: 'src/main.rs',
+      files: [
         {
-          type: 'regex',
-          value: '->\\s*Result<',
-          message: 'Return a Result from parse_age.',
-        },
-        {
-          type: 'not_contains',
-          value: 'unwrap()',
-          message: 'Remove unwrap-driven control flow from the lesson solution.',
+          path: 'src/main.rs',
+          content:
+            'fn parse_age(input: &str) -> u8 {\n    input.parse().unwrap()\n}\n\nfn main() {\n    let age = parse_age("twelve");\n    println!("Age: {age}");\n}\n',
         },
       ],
+      prompt: 'Return a Result from parse_age and handle bad input in main.',
+      hint: 'Replace unwrap-driven control flow with an explicit Result path.',
+      success: 'Bad input no longer crashes the program and the outcome is explained clearly.',
+      validation: {
+        kind: 'heuristic',
+        checks: [
+          {
+            type: 'regex',
+            value: '->\\s*Result<',
+            message: 'Return a Result from parse_age.',
+          },
+          {
+            type: 'not_contains',
+            value: 'unwrap()',
+            message: 'Remove unwrap-driven control flow from the lesson solution.',
+          },
+        ],
+      },
     },
   },
   {
@@ -187,23 +233,31 @@ export const curriculum: Lesson[] = [
       'Shape a small program with functions and Result-based errors',
     ],
     exercise: {
-      fileName: 'main.rs',
-      prompt: 'Extend the starter to read a file path argument and print the line count.',
-      starterCode: `fn main() {\n    println!("next: read args and count lines");\n}\n`,
-      hint: 'Break the job into steps: args, read file, count lines, print result.',
-      success: 'A learner can point the program at a text file and get a useful count back.',
-      checks: [
+      entryFile: 'src/main.rs',
+      files: [
         {
-          type: 'regex',
-          value: '(std::env::args\\(|env::args\\()',
-          message: 'Read CLI arguments from std::env::args.',
-        },
-        {
-          type: 'regex',
-          value: '(std::fs::read_to_string\\(|fs::read_to_string\\()',
-          message: 'Read file contents from disk.',
+          path: 'src/main.rs',
+          content: 'fn main() {\n    println!("next: read args and count lines");\n}\n',
         },
       ],
+      prompt: 'Extend the starter to read a file path argument and print the line count.',
+      hint: 'Break the job into steps: args, read file, count lines, print result.',
+      success: 'A learner can point the program at a text file and get a useful count back.',
+      validation: {
+        kind: 'heuristic',
+        checks: [
+          {
+            type: 'regex',
+            value: '(std::env::args\\(|env::args\\()',
+            message: 'Read CLI arguments from std::env::args.',
+          },
+          {
+            type: 'regex',
+            value: '(std::fs::read_to_string\\(|fs::read_to_string\\()',
+            message: 'Read file contents from disk.',
+          },
+        ],
+      },
     },
   },
 ]
