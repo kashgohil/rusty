@@ -1,4 +1,9 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
+import { Button } from '~/components/ui/button'
+import {
+  Card,
+  CardContent,
+} from '~/components/ui/card'
 import { useLessonProgress } from '~/utils/useLessonProgress'
 import { useLessons } from '~/utils/useLessons'
 
@@ -21,7 +26,7 @@ function HomePage() {
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-12 px-6 pb-24 pt-10">
       <section className="hero-panel">
-        <div className="hero-copy">
+        <Card className="hero-copy">
           <p className="eyebrow">Interactive Rust bootcamp</p>
           <h1>
             Build a serious Rust practice space that feels like a workshop, not a
@@ -33,32 +38,44 @@ function HomePage() {
             LSP support into the lesson experience.
           </p>
           <div className="hero-actions">
-            <Link className="primary-pill" to="/lessons">
-              Open curriculum
-            </Link>
-            <Link className="ghost-pill" to="/docs/architecture">
-              Review architecture
-            </Link>
+            <Button asChild className="primary-pill rounded-full px-5 py-4" size="lg">
+              <Link to="/lessons">Open curriculum</Link>
+            </Button>
+            <Button
+              asChild
+              className="ghost-pill rounded-full border px-5 py-4"
+              size="lg"
+              variant="outline"
+            >
+              <Link to="/docs/architecture">Review architecture</Link>
+            </Button>
           </div>
-        </div>
+        </Card>
         <aside className="hero-stats">
-          <div>
+          <Card>
+            <CardContent className="px-5 py-5">
             <span>{String(totalLessons).padStart(2, '0')}</span>
             <p>lessons scoped for the first learning track</p>
-          </div>
-          <div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="px-5 py-5">
             <span>{String(totalStages).padStart(2, '0')}</span>
             <p>curriculum stages from basics to practical projects</p>
-          </div>
-          <div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="px-5 py-5">
             <span>{String(completedLessons).padStart(2, '0')}</span>
             <p>{startedLessons} started, {completedLessons} completed through the API</p>
-          </div>
+            </CardContent>
+          </Card>
         </aside>
       </section>
 
       <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-        <article className="brief-panel">
+        <Card className="brief-panel">
+          <CardContent className="px-6 py-6">
           <p className="eyebrow">Platform shape</p>
           <h2>Why this structure works for a Rust bootcamp</h2>
           <ul className="brief-list">
@@ -66,9 +83,10 @@ function HomePage() {
             <li>The editor and runner are separate concerns, which keeps public execution safer.</li>
             <li>The API and runner can both stay in Rust while the frontend moves quickly.</li>
           </ul>
-        </article>
+          </CardContent>
+        </Card>
 
-        <article className="ide-preview">
+        <Card className="ide-preview">
           <div className="ide-topbar">
             <span>lesson.rs</span>
             <span>runner: pending</span>
@@ -78,7 +96,7 @@ function HomePage() {
     println!("Bootcamp status: {ownership}");
 }`}</pre>
           <div className="ide-console">next: wire Monaco + sandboxed execution</div>
-        </article>
+        </Card>
       </section>
     </main>
   )

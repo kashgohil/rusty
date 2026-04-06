@@ -3,8 +3,7 @@ import type {
   LessonProgressMap,
   LessonProgressUpdateRequest,
 } from '@rust-learning/shared-types'
-
-export const API_URL = 'http://127.0.0.1:9092'
+import { API_URL } from '~/utils/env'
 
 export async function fetchLessons() {
   const response = await fetch(`${API_URL}/lessons`)

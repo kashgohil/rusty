@@ -1,7 +1,6 @@
 /// <reference types="vite/client" />
 import {
   HeadContent,
-  Link,
   Scripts,
   createRootRoute,
 } from '@tanstack/react-router'
@@ -9,6 +8,7 @@ import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
 import * as React from 'react'
 import { DefaultCatchBoundary } from '~/components/DefaultCatchBoundary'
 import { NotFound } from '~/components/NotFound'
+import { TooltipProvider } from '~/components/ui/tooltip'
 import appCss from '~/styles/app.css?url'
 
 export const Route = createRootRoute({
@@ -46,18 +46,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         <div className="grain" />
-        <header className="site-shell">
-          <div className="site-nav">
-            <Link activeOptions={{ exact: true }} activeProps={{ className: 'is-active' }} to="/">
-              Bootcamp
-            </Link>
-            <Link activeProps={{ className: 'is-active' }} to="/lessons">
-              Curriculum
-            </Link>
-          </div>
-          <p className="site-tag">Rust workshop system for solo study and shared cohorts</p>
-        </header>
-        {children}
+        <TooltipProvider>{children}</TooltipProvider>
         <TanStackRouterDevtools position="bottom-right" />
         <Scripts />
       </body>

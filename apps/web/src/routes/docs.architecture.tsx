@@ -1,4 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
+import {
+  Card,
+  CardContent,
+} from '~/components/ui/card'
+import { Separator } from '~/components/ui/separator'
 
 export const Route = createFileRoute('/docs/architecture')({
   component: ArchitectureDocPage,
@@ -16,11 +21,14 @@ function ArchitectureDocPage() {
         </p>
       </section>
 
-      <section className="stage-panel">
+      <Card className="stage-panel">
+        <CardContent className="px-6 py-6">
         <div className="objective-block">
           <h2>High-Level System</h2>
           <p>The platform should be split into three main applications:</p>
         </div>
+
+        <Separator className="bg-[rgb(162_143_108_/_0.12)]" />
 
         <div className="objective-block">
           <h2>`apps/web`</h2>
@@ -125,7 +133,8 @@ function ArchitectureDocPage() {
             <li>Add auth and sharing.</li>
           </ol>
         </div>
-      </section>
+        </CardContent>
+      </Card>
     </main>
   )
 }

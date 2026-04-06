@@ -1,4 +1,7 @@
 import { ErrorComponent, Link, rootRouteId, useMatch } from '@tanstack/react-router'
+import { Alert, AlertDescription, AlertTitle } from '~/components/ui/alert'
+import { Button } from '~/components/ui/button'
+import { Card, CardContent } from '~/components/ui/card'
 
 export function DefaultCatchBoundary({ error }: { error: Error }) {
   const isRoot = useMatch({
@@ -18,25 +21,33 @@ export function DefaultCatchBoundary({ error }: { error: Error }) {
         {error.message}
       </p>
       <div className="mt-8 flex flex-wrap gap-3">
-        <Link
-          className="rounded-full border border-amber-200/30 bg-amber-100 px-5 py-2 text-sm font-medium text-stone-950"
-          to="/"
+        <Button
+          asChild
+          className="rounded-full border-amber-200/30 bg-amber-100 px-5 text-stone-950 hover:bg-amber-200"
         >
-          Back to home
-        </Link>
+          <Link to="/">Back to home</Link>
+        </Button>
         {!isRoot ? (
-          <button
-            className="rounded-full border border-stone-700 px-5 py-2 text-sm text-stone-100"
+          <Button
+            className="rounded-full border-stone-700 bg-transparent px-5 text-stone-100 hover:bg-stone-900"
             onClick={() => window.history.back()}
             type="button"
+            variant="outline"
           >
             Go back
-          </button>
+          </Button>
         ) : null}
       </div>
-      <div className="mt-8 rounded-3xl border border-red-400/30 bg-red-950/30 p-5">
-        <ErrorComponent error={error} />
-      </div>
+      <Alert className="mt-8 border-red-400/30 bg-red-950/30 text-stone-100" variant="destructive">
+        <AlertTitle>Error details</AlertTitle>
+        <AlertDescription>
+          <Card className="mt-3 border-0 bg-transparent py-0 shadow-none ring-0">
+            <CardContent className="px-0 pt-0">
+              <ErrorComponent error={error} />
+            </CardContent>
+          </Card>
+        </AlertDescription>
+      </Alert>
     </main>
   )
 }

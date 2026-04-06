@@ -1,4 +1,5 @@
 import Editor from '@monaco-editor/react'
+import { Check, Play, RotateCcw } from 'lucide-react'
 import type {
   ExecutionCheckResult,
   ExecutionMode,
@@ -7,10 +8,52 @@ import type {
   Lesson,
   LessonFile,
 } from '@rust-learning/shared-types'
+import type { ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '~/components/ui/tooltip'
+import { Badge } from '~/components/ui/badge'
+import { Button } from '~/components/ui/button'
+import { RUNNER_URL } from '~/utils/env'
 import { useLessonProgress } from '~/utils/useLessonProgress'
 
-const RUNNER_URL = 'http://127.0.0.1:9091'
+function IconAction({
+  ariaLabel,
+  children,
+  className,
+  disabled,
+  onClick,
+  tooltip,
+}: {
+  ariaLabel: string
+  children: ReactNode
+  className?: string
+  disabled: boolean
+  onClick: () => void
+  tooltip: string
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          aria-label={ariaLabel}
+          className={className}
+          disabled={disabled}
+          onClick={onClick}
+          size="icon"
+          type="button"
+          variant="outline"
+        >
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="top">{tooltip}</TooltipContent>
+    </Tooltip>
+  )
+}
 
 export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
   const storageKey = useMemo(
@@ -147,52 +190,27 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
         </div>
       </div>
 
-      <div className="workbench-controls">
-        <div className="workbench-control-group">
-          <button
-            className="primary-pill"
-            disabled={activeAction !== null}
-            onClick={() => void execute('run')}
-            type="button"
-          >
-            Run lesson
-          </button>
-          <button
-            className="ghost-pill"
-            disabled={activeAction !== null}
-            onClick={() => void execute('check')}
-            type="button"
-          >
-            Check answer
-          </button>
-          <button
-            className="ghost-pill"
-            disabled={activeAction !== null}
-            onClick={handleReset}
-            type="button"
-          >
-            Reset workspace
-          </button>
-        </div>
-        <p className="workbench-note">
-          Code is saved per lesson workspace. Multi-file payloads go to runner `9091`.
-        </p>
-      </div>
-
       <div className="editor-layout">
         <aside className="file-sidebar">
           <p className="file-sidebar-label">Workspace files</p>
           <div className="file-list">
             {files.map((file) => (
-              <button
+              <Button
                 className={`file-tab ${file.path === activeFile?.path ? 'is-active' : ''}`}
                 key={file.path}
                 onClick={() => setActivePath(file.path)}
+                size="sm"
                 type="button"
+                variant="ghost"
               >
-                <span>{file.path}</span>
-                <small>{file.editable === false ? 'hidden source' : 'editable'}</small>
-              </button>
+                <span className="file-tab-row">
+                  <span
+                    className={`file-tab-path ${file.editable === false ? 'is-muted' : ''}`}
+                  >
+                    {file.path}
+                  </span>
+                </span>
+              </Button>
             ))}
           </div>
         </aside>
@@ -215,7 +233,7 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
                 })
               }}
               defaultLanguage="rust"
-              height="420px"
+              height="58vh"
               loading={<div className="editor-loading">Loading editor...</div>}
               onChange={(value) => updateFile(activeFile.path, value ?? '')}
               options={{
@@ -240,23 +258,46 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
 
       <div className="output-panel">
         <div className="output-panel-header">
-          <h3>{result.headline}</h3>
-          <span className={`output-badge output-badge-${result.status}`}>
-            {result.status}
-          </span>
+          <div>
+            <h3>{result.headline}</h3>
+            <p className="workbench-note">
+              Code is saved per lesson workspace. Multi-file payloads go to the configured runner service.
+            </p>
+          </div>
+          <div className="output-panel-actions">
+            <Badge className={`output-badge output-badge-${result.status}`}>
+              {result.status}
+            </Badge>
+            <IconAction
+              ariaLabel="Run lesson"
+              className="icon-action icon-action-run"
+              disabled={activeAction !== null}
+              onClick={() => void execute('run')}
+              tooltip="Run lesson"
+            >
+              <Play />
+            </IconAction>
+            <IconAction
+              ariaLabel="Check answer"
+              className="icon-action"
+              disabled={activeAction !== null}
+              onClick={() => void execute('check')}
+              tooltip="Check answer"
+            >
+              <Check />
+            </IconAction>
+            <IconAction
+              ariaLabel="Reset workspace"
+              className="icon-action"
+              disabled={activeAction !== null}
+              onClick={handleReset}
+              tooltip="Reset workspace"
+            >
+              <RotateCcw />
+            </IconAction>
+          </div>
         </div>
         <pre className="output-console">{result.output}</pre>
-      </div>
-
-      <div className="workbench-footer">
-        <div>
-          <h3>Hint</h3>
-          <p>{lesson.exercise.hint}</p>
-        </div>
-        <div>
-          <h3>Validation target</h3>
-          <p>{lesson.exercise.success}</p>
-        </div>
       </div>
     </article>
   )

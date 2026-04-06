@@ -5,6 +5,7 @@ import { fetchLesson, fetchLessons } from './api'
 export function useLessons() {
   const [lessons, setLessons] = useState<Lesson[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -13,6 +14,17 @@ export function useLessons() {
       .then((data) => {
         if (!cancelled) {
           setLessons(data)
+          setError(null)
+        }
+      })
+      .catch((cause) => {
+        if (!cancelled) {
+          setLessons([])
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : 'Failed to load lessons from the API.',
+          )
         }
       })
       .finally(() => {
@@ -26,20 +38,33 @@ export function useLessons() {
     }
   }, [])
 
-  return { lessons, isLoading }
+  return { lessons, isLoading, error }
 }
 
 export function useLesson(slug: string) {
   const [lesson, setLesson] = useState<Lesson | null | undefined>(undefined)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
 
-    void fetchLesson(slug).then((data) => {
-      if (!cancelled) {
-        setLesson(data)
-      }
-    })
+    void fetchLesson(slug)
+      .then((data) => {
+        if (!cancelled) {
+          setLesson(data)
+          setError(null)
+        }
+      })
+      .catch((cause) => {
+        if (!cancelled) {
+          setLesson(null)
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : `Failed to load lesson ${slug}.`,
+          )
+        }
+      })
 
     return () => {
       cancelled = true
@@ -49,5 +74,6 @@ export function useLesson(slug: string) {
   return {
     lesson,
     isLoading: lesson === undefined,
+    error,
   }
 }

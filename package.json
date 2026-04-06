@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "dev": "bun --cwd apps/web dev",
+    "dev:full": "bun --cwd apps/api dev & bun --cwd apps/web dev & wait",
     "dev:web": "bun --cwd apps/web dev",
     "build:web": "bun --cwd apps/web build",
     "preview:web": "bun --cwd apps/web preview",
