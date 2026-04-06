@@ -1,23 +1,35 @@
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{
+        Path, State,
+        ws::{Message, WebSocket, WebSocketUpgrade},
+    },
     http::StatusCode,
     response::IntoResponse,
     routing::get,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::{collections::HashMap, net::SocketAddr, path::PathBuf, sync::Arc};
-use tokio::{fs, net::TcpListener, sync::Mutex};
+use tokio::{
+    fs,
+    io::{AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader},
+    net::TcpListener,
+    process::{ChildStderr, ChildStdout, Command},
+    sync::Mutex,
+};
 use tower_http::cors::CorsLayer;
 
 const DEFAULT_PORT: u16 = 9092;
+const DEFAULT_RUST_ANALYZER_BIN: &str = "rust-analyzer";
 
 #[derive(Clone)]
 struct AppState {
     lessons_path: PathBuf,
     progress_path: PathBuf,
+    workspace_root: PathBuf,
     progress_lock: Arc<Mutex<()>>,
+    rust_analyzer_bin: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -42,17 +54,30 @@ struct HealthResponse {
     status: &'static str,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LspHealthResponse {
+    status: &'static str,
+    command: String,
+    available: bool,
+    version: Option<String>,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let port = std::env::var("API_PORT")
         .ok()
         .and_then(|value| value.parse::<u16>().ok())
         .unwrap_or(DEFAULT_PORT);
+    let workspace_root = std::env::current_dir()?.join("../..");
 
     let state = AppState {
-        lessons_path: PathBuf::from("../../packages/lesson-content/src/lessons.json"),
+        lessons_path: workspace_root.join("packages/lesson-content/src/lessons.json"),
         progress_path: PathBuf::from("data/progress.json"),
+        workspace_root,
         progress_lock: Arc::new(Mutex::new(())),
+        rust_analyzer_bin: std::env::var("RUST_ANALYZER_BIN")
+            .unwrap_or_else(|_| DEFAULT_RUST_ANALYZER_BIN.to_string()),
     };
 
     ensure_progress_store_exists(&state.progress_path).await?;
@@ -62,6 +87,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/lessons", get(list_lessons))
         .route("/lessons/{slug}", get(get_lesson))
         .route("/progress/{learner_id}", get(get_progress).put(update_progress))
+        .route("/lsp/health", get(lsp_health))
+        .route("/lsp/ws", get(lsp_websocket))
         .layer(CorsLayer::permissive())
         .with_state(state);
 
@@ -77,6 +104,192 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn health() -> Json<HealthResponse> {
     Json(HealthResponse { status: "ok" })
+}
+
+async fn lsp_health(State(state): State<AppState>) -> Json<LspHealthResponse> {
+    match Command::new(&state.rust_analyzer_bin)
+        .arg("--version")
+        .output()
+        .await
+    {
+        Ok(output) if output.status.success() => Json(LspHealthResponse {
+            status: "ok",
+            command: state.rust_analyzer_bin,
+            available: true,
+            version: Some(String::from_utf8_lossy(&output.stdout).trim().to_string()),
+        }),
+        Ok(output) => Json(LspHealthResponse {
+            status: "degraded",
+            command: state.rust_analyzer_bin,
+            available: false,
+            version: Some(String::from_utf8_lossy(&output.stderr).trim().to_string()),
+        }),
+        Err(_) => Json(LspHealthResponse {
+            status: "unavailable",
+            command: state.rust_analyzer_bin,
+            available: false,
+            version: None,
+        }),
+    }
+}
+
+async fn lsp_websocket(
+    ws: WebSocketUpgrade,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| handle_lsp_socket(socket, state))
+}
+
+async fn handle_lsp_socket(mut socket: WebSocket, state: AppState) {
+    let mut child = match Command::new(&state.rust_analyzer_bin)
+        .current_dir(&state.workspace_root)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+    {
+        Ok(child) => child,
+        Err(error) => {
+            let _ = socket
+                .send(Message::Text(
+                    json!({
+                        "jsonrpc": "2.0",
+                        "method": "window/logMessage",
+                        "params": {
+                            "type": 1,
+                            "message": format!("Failed to start rust-analyzer: {error}"),
+                        }
+                    })
+                    .to_string()
+                    .into(),
+                ))
+                .await;
+            let _ = socket.send(Message::Close(None)).await;
+            return;
+        }
+    };
+
+    let Some(mut stdin) = child.stdin.take() else {
+        let _ = socket.send(Message::Close(None)).await;
+        return;
+    };
+    let Some(stdout) = child.stdout.take() else {
+        let _ = socket.send(Message::Close(None)).await;
+        return;
+    };
+
+    if let Some(stderr) = child.stderr.take() {
+        tokio::spawn(log_lsp_stderr(stderr));
+    }
+
+    let mut reader = BufReader::new(stdout);
+
+    loop {
+        tokio::select! {
+            ws_message = socket.recv() => {
+                let Some(Ok(message)) = ws_message else {
+                    break;
+                };
+
+                match message {
+                    Message::Text(payload) => {
+                        if write_lsp_message(&mut stdin, payload.as_str()).await.is_err() {
+                            break;
+                        }
+                    }
+                    Message::Binary(payload) => {
+                        if let Ok(text) = String::from_utf8(payload.to_vec()) {
+                            if write_lsp_message(&mut stdin, &text).await.is_err() {
+                                break;
+                            }
+                        }
+                    }
+                    Message::Close(_) => break,
+                    Message::Ping(payload) => {
+                        if socket.send(Message::Pong(payload)).await.is_err() {
+                            break;
+                        }
+                    }
+                    Message::Pong(_) => {}
+                }
+            }
+            lsp_message = read_lsp_message(&mut reader) => {
+                match lsp_message {
+                    Ok(Some(payload)) => {
+                        if socket.send(Message::Text(payload.into())).await.is_err() {
+                            break;
+                        }
+                    }
+                    Ok(None) => break,
+                    Err(error) => {
+                        let message = json!({
+                            "jsonrpc": "2.0",
+                            "method": "window/logMessage",
+                            "params": {
+                                "type": 1,
+                                "message": format!("rust-analyzer stream error: {error}"),
+                            }
+                        }).to_string();
+
+                        let _ = socket.send(Message::Text(message.into())).await;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    let _ = child.start_kill();
+    let _ = child.wait().await;
+}
+
+async fn log_lsp_stderr(stderr: ChildStderr) {
+    let mut lines = BufReader::new(stderr).lines();
+
+    while let Ok(Some(line)) = lines.next_line().await {
+        eprintln!("rust-analyzer stderr: {line}");
+    }
+}
+
+async fn read_lsp_message(reader: &mut BufReader<ChildStdout>) -> Result<Option<String>, std::io::Error> {
+    let mut content_length = None;
+    let mut line = String::new();
+
+    loop {
+        line.clear();
+        let bytes_read = reader.read_line(&mut line).await?;
+
+        if bytes_read == 0 {
+            return Ok(None);
+        }
+
+        if line == "\r\n" {
+            break;
+        }
+
+        if let Some(value) = line.strip_prefix("Content-Length:") {
+            content_length = value.trim().parse::<usize>().ok();
+        }
+    }
+
+    let Some(length) = content_length else {
+        return Ok(None);
+    };
+
+    let mut body = vec![0; length];
+    reader.read_exact(&mut body).await?;
+
+    Ok(Some(String::from_utf8_lossy(&body).to_string()))
+}
+
+async fn write_lsp_message<W>(writer: &mut W, payload: &str) -> Result<(), std::io::Error>
+where
+    W: AsyncWrite + Unpin,
+{
+    let header = format!("Content-Length: {}\r\n\r\n", payload.len());
+    writer.write_all(header.as_bytes()).await?;
+    writer.write_all(payload.as_bytes()).await?;
+    writer.flush().await
 }
 
 async fn list_lessons(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {
@@ -137,16 +350,14 @@ async fn update_progress(
 }
 
 async fn read_lessons(path: &PathBuf) -> Result<Value, ApiError> {
-    let contents = fs::read_to_string(path)
-        .await
-        .map_err(ApiError::internal)?;
+    let contents = fs::read_to_string(path).await.map_err(ApiError::internal)?;
 
     serde_json::from_str(&contents).map_err(ApiError::internal)
 }
 
 async fn ensure_progress_store_exists(path: &PathBuf) -> Result<(), std::io::Error> {
     if let Some(parent) = path.parent() {
-      fs::create_dir_all(parent).await?;
+        fs::create_dir_all(parent).await?;
     }
 
     if fs::try_exists(path).await? {
@@ -157,9 +368,7 @@ async fn ensure_progress_store_exists(path: &PathBuf) -> Result<(), std::io::Err
 }
 
 async fn read_progress_store(path: &PathBuf) -> Result<LearnerProgressStore, ApiError> {
-    let contents = fs::read_to_string(path)
-        .await
-        .map_err(ApiError::internal)?;
+    let contents = fs::read_to_string(path).await.map_err(ApiError::internal)?;
 
     serde_json::from_str(&contents).map_err(ApiError::internal)
 }
