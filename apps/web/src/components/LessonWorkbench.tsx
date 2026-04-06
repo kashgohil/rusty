@@ -9,7 +9,7 @@ import type {
   LessonFile,
 } from '@rust-learning/shared-types'
 import type { ReactNode } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Tooltip,
   TooltipContent,
@@ -17,6 +17,7 @@ import {
 } from '~/components/ui/tooltip'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
+import { RustLspClient, workspaceFileUri, type LspConnectionState } from '~/utils/lsp'
 import { RUNNER_URL } from '~/utils/env'
 import { useLessonProgress } from '~/utils/useLessonProgress'
 
@@ -64,6 +65,7 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
   const [files, setFiles] = useState<LessonFile[]>(lesson.exercise.files)
   const [activePath, setActivePath] = useState(lesson.exercise.entryFile)
   const [isHydrated, setIsHydrated] = useState(false)
+  const [lspState, setLspState] = useState<LspConnectionState>('connecting')
   const [result, setResult] = useState<ExecutionResult>({
     status: 'idle',
     headline: 'Ready to run',
@@ -71,6 +73,7 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
       'This lesson now supports multiple files. Edit any visible file, then run or check the full workspace.',
   })
   const [activeAction, setActiveAction] = useState<ExecutionMode | null>(null)
+  const lspClientRef = useRef<RustLspClient | null>(null)
 
   const activeFile =
     files.find((file) => file.path === activePath) ??
@@ -109,6 +112,22 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
       void persistLessonProgress(lesson.slug, 'in_progress')
     }
   }, [files, isHydrated, lesson.exercise.files, lesson.slug, storageKey, persistLessonProgress])
+
+  useEffect(() => {
+    if (!lspClientRef.current) {
+      return
+    }
+
+    lspClientRef.current.ensureModels(files)
+    lspClientRef.current.syncWorkspace(files)
+  }, [files])
+
+  useEffect(() => {
+    return () => {
+      lspClientRef.current?.dispose()
+      lspClientRef.current = null
+    }
+  }, [])
 
   function handleReset() {
     setFiles(lesson.exercise.files)
@@ -184,6 +203,7 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
           <h2>{activeFile?.path ?? lesson.exercise.entryFile}</h2>
         </div>
         <div className="workbench-status">
+          <span>lsp {lspState}</span>
           <span>{progress[lesson.slug]?.status ?? 'not_started'}</span>
           <span>{result.status}</span>
           <span>{files.length} files</span>
@@ -235,6 +255,15 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
               defaultLanguage="rust"
               height="58vh"
               loading={<div className="editor-loading">Loading editor...</div>}
+              onMount={(_, monaco) => {
+                if (!lspClientRef.current) {
+                  const client = new RustLspClient(lesson.slug, monaco, setLspState)
+                  client.connect()
+                  client.ensureModels(files)
+                  client.syncWorkspace(files)
+                  lspClientRef.current = client
+                }
+              }}
               onChange={(value) => updateFile(activeFile.path, value ?? '')}
               options={{
                 automaticLayout: true,
@@ -248,7 +277,7 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
                 smoothScrolling: true,
                 wordWrap: 'on',
               }}
-              path={activeFile.path}
+              path={workspaceFileUri(lesson.slug, activeFile.path)}
               theme="rust-learning-workbench"
               value={activeFile.content}
             />
