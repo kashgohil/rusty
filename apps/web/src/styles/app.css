@@ -549,6 +549,99 @@
     white-space: pre-wrap;
   }
 
+  .diagnostics-panel {
+    border-top: 1px solid rgb(162 143 108 / 0.14);
+    background: rgb(9 14 15 / 0.88);
+  }
+
+  .diagnostics-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.9rem 1.2rem;
+    border-bottom: 1px solid rgb(162 143 108 / 0.12);
+  }
+
+  .diagnostics-header h3 {
+    font-size: 0.94rem;
+  }
+
+  .diagnostics-header span {
+    color: rgb(243 239 230 / 0.52);
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .diagnostics-empty {
+    margin: 0;
+    padding: 1rem 1.2rem 1.2rem;
+    color: rgb(243 239 230 / 0.62);
+    font-size: 0.84rem;
+  }
+
+  .diagnostics-list {
+    display: grid;
+  }
+
+  .diagnostic-item {
+    display: flex;
+    align-items: start;
+    gap: 0.8rem;
+    width: 100%;
+    border: 0;
+    border-top: 1px solid rgb(162 143 108 / 0.08);
+    background: transparent;
+    padding: 0.9rem 1.2rem;
+    text-align: left;
+    transition: background 180ms ease;
+  }
+
+  .diagnostic-item:hover {
+    background: rgb(239 107 71 / 0.08);
+  }
+
+  .diagnostic-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.2rem;
+    height: 1.2rem;
+    color: rgb(255 179 156);
+    flex: none;
+  }
+
+  .diagnostic-icon svg {
+    width: 0.95rem;
+    height: 0.95rem;
+  }
+
+  .diagnostic-copy {
+    display: grid;
+    gap: 0.2rem;
+    min-width: 0;
+  }
+
+  .diagnostic-copy strong {
+    color: rgb(243 239 230 / 0.92);
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+
+  .diagnostic-copy span {
+    color: rgb(243 239 230 / 0.72);
+    font-size: 0.82rem;
+    line-height: 1.5;
+  }
+
+  .diagnostic-copy small {
+    color: rgb(243 239 230 / 0.46);
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
   .icon-action {
     display: inline-flex;
     align-items: center;

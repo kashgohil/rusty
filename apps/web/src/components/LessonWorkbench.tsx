@@ -1,5 +1,5 @@
 import Editor from '@monaco-editor/react'
-import { Check, Play, RotateCcw, WandSparkles } from 'lucide-react'
+import { AlertTriangle, Check, Play, RotateCcw, WandSparkles } from 'lucide-react'
 import type {
   ExecutionCheckResult,
   ExecutionMode,
@@ -131,6 +131,24 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
     lspClientRef.current.ensureModels(files)
     lspClientRef.current.syncWorkspace(files)
   }, [files])
+
+  useEffect(() => {
+    const editor = editorRef.current
+    const client = lspClientRef.current
+    if (!editor || !client) {
+      return
+    }
+
+    const model = editor.getModel()
+    if (!model) {
+      return
+    }
+
+    const path = client.getPathForUri(model.uri.toString())
+    if (path && path !== activePath) {
+      setActivePath(path)
+    }
+  }, [activePath, files, lspStatus.state])
 
   useEffect(() => {
     return () => {
@@ -323,6 +341,14 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
                   void client.connect(files)
                   lspClientRef.current = client
                 }
+
+                editor.onDidChangeModel(() => {
+                  const uri = editor.getModel()?.uri.toString()
+                  const path = uri ? lspClientRef.current?.getPathForUri(uri) : null
+                  if (path) {
+                    setActivePath(path)
+                  }
+                })
               }}
               onChange={(value) => updateFile(activeFile.path, value ?? '')}
               options={{
@@ -396,6 +422,38 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
           </div>
         </div>
         <pre className="output-console">{result.output}</pre>
+      </div>
+
+      <div className="diagnostics-panel">
+        <div className="diagnostics-header">
+          <h3>Problems</h3>
+          <span>{diagnostics.length}</span>
+        </div>
+        {diagnostics.length === 0 ? (
+          <p className="diagnostics-empty">No diagnostics in the current lesson workspace.</p>
+        ) : (
+          <div className="diagnostics-list">
+            {diagnostics.map((diagnostic, index) => (
+              <button
+                className="diagnostic-item"
+                key={`${diagnostic.path}-${diagnostic.range.start.line}-${index}`}
+                onClick={() => openDiagnostic(diagnostic)}
+                type="button"
+              >
+                <span className="diagnostic-icon">
+                  <AlertTriangle />
+                </span>
+                <span className="diagnostic-copy">
+                  <strong>{diagnostic.path}</strong>
+                  <span>{diagnostic.message}</span>
+                  <small>
+                    line {diagnostic.range.start.line + 1}, col {diagnostic.range.start.character + 1}
+                  </small>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </article>
   )

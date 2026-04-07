@@ -312,12 +312,22 @@ export class RustLspClient {
     return workspaceFileUri(this.session?.filePaths ?? null, path)
   }
 
+  getPathForUri(uri: string) {
+    const filePaths = this.session?.filePaths ?? {}
+    return (
+      Object.entries(filePaths).find(([, absolutePath]) => `file://${absolutePath}` === uri)?.[0] ??
+      null
+    )
+  }
+
   ensureModels(files: LessonFile[]) {
     if (!this.session) {
       return
     }
 
-    for (const file of files.filter((item) => item.editable !== false)) {
+    for (const file of files.filter(
+      (item) => item.editable !== false && isRustSource(item.path),
+    )) {
       const uri = this.monaco.Uri.parse(this.getFileUri(file.path))
       const existingModel = this.monaco.editor.getModel(uri)
 
@@ -342,9 +352,9 @@ export class RustLspClient {
 
     const nextDocuments = new Map<string, { languageId: string; text: string; uri: string }>()
 
-    for (const file of files) {
+    for (const file of files.filter((item) => isRustSource(item.path))) {
       nextDocuments.set(this.getFileUri(file.path), {
-        languageId: file.path.endsWith('.toml') ? 'toml' : 'rust',
+        languageId: 'rust',
         text: file.content,
         uri: this.getFileUri(file.path),
       })
@@ -359,6 +369,11 @@ export class RustLspClient {
         textDocument: { uri },
       })
       this.openedDocuments.delete(uri)
+      const saveTimer = this.didSaveTimers.get(uri)
+      if (saveTimer) {
+        globalThis.clearTimeout(saveTimer)
+        this.didSaveTimers.delete(uri)
+      }
       this.versions.delete(uri)
       const model = this.monaco.editor.getModel(this.monaco.Uri.parse(uri))
       if (model) {
@@ -380,6 +395,7 @@ export class RustLspClient {
             version: 1,
           },
         })
+        this.scheduleDidSave(uri)
         continue
       }
 
@@ -397,6 +413,7 @@ export class RustLspClient {
           version: nextVersion,
         },
       })
+      this.scheduleDidSave(uri)
     }
   }
 
@@ -513,6 +530,11 @@ export class RustLspClient {
             return null
           }
 
+          const targetModel = this.monaco.editor.getModel(this.monaco.Uri.parse(target.uri))
+          if (targetModel && this.editor) {
+            this.editor.setModel(targetModel)
+          }
+
           return {
             range: toMonacoRange(target.range),
             uri: this.monaco.Uri.parse(target.uri),
@@ -544,8 +566,8 @@ export class RustLspClient {
             },
             publishDiagnostics: {},
             synchronization: {
-              didSave: false,
               dynamicRegistration: false,
+              didSave: true,
               willSave: false,
               willSaveWaitUntil: false,
             },
@@ -631,6 +653,7 @@ export class RustLspClient {
 
       this.diagnostics.set(params.uri, params.diagnostics)
       this.applyDiagnostics(params.uri)
+      this.publishDiagnostics()
     }
   }
 
@@ -654,6 +677,28 @@ export class RustLspClient {
         startLineNumber: diagnostic.range.start.line + 1,
       })),
     )
+  }
+
+  private publishDiagnostics() {
+    const diagnostics: LessonDiagnostic[] = []
+
+    for (const [uri, items] of this.diagnostics) {
+      const path = this.getPathForUri(uri)
+      if (!path || !isRustSource(path)) {
+        continue
+      }
+
+      for (const item of items) {
+        diagnostics.push({
+          message: item.message,
+          path,
+          range: item.range,
+          severity: item.severity,
+        })
+      }
+    }
+
+    this.onDiagnosticsChange(diagnostics)
   }
 
   private async respondToServerRequest(message: JsonRpcRequest) {
@@ -706,6 +751,22 @@ export class RustLspClient {
       method,
       params,
     })
+  }
+
+  private scheduleDidSave(uri: string) {
+    const existingTimer = this.didSaveTimers.get(uri)
+    if (existingTimer) {
+      globalThis.clearTimeout(existingTimer)
+    }
+
+    const timer = globalThis.setTimeout(() => {
+      this.didSaveTimers.delete(uri)
+      this.notify('textDocument/didSave', {
+        textDocument: { uri },
+      })
+    }, 500)
+
+    this.didSaveTimers.set(uri, timer)
   }
 
   private request(method: string, params: unknown) {
