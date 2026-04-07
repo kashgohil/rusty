@@ -85,3 +85,15 @@ export interface LessonProgressUpdateRequest {
   lessonSlug: string
   status: LessonProgressStatus
 }
+
+export interface LspSessionCreateRequest {
+  lessonSlug: string
+  entryFile: string
+  files: LessonFile[]
+}
+
+export interface LspSessionCreateResponse {
+  sessionId: string
+  rootPath: string
+  filePaths: Record<string, string>
+}
