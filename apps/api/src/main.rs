@@ -113,7 +113,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok()
         .and_then(|value| value.parse::<u16>().ok())
         .unwrap_or(DEFAULT_PORT);
-    let workspace_root = std::env::current_dir()?.join("../..");
+    let workspace_root = std::env::current_dir()?.join("../..").canonicalize()?;
 
     let state = AppState {
         lessons_path: workspace_root.join("packages/lesson-content/src/lessons.json"),
@@ -196,17 +196,18 @@ async fn create_lsp_session(
     let session_id = next_lsp_session_id(&state);
     let session_root = state.lsp_workspaces_root.join(&session_id);
     let file_paths = materialize_lsp_workspace(&session_root, &payload).await?;
+    let canonical_root = session_root.canonicalize().map_err(ApiError::internal)?;
 
     state.lsp_sessions.lock().await.insert(
         session_id.clone(),
         LspSession {
-            root_path: session_root.clone(),
+            root_path: canonical_root.clone(),
         },
     );
 
     Ok(Json(LspSessionCreateResponse {
         session_id,
-        root_path: session_root.to_string_lossy().to_string(),
+        root_path: canonical_root.to_string_lossy().to_string(),
         file_paths,
     }))
 }
@@ -427,7 +428,11 @@ async fn materialize_lsp_workspace(
     .map_err(ApiError::internal)?;
     file_paths.insert(
         "Cargo.toml".to_string(),
-        cargo_toml_path.to_string_lossy().to_string(),
+        cargo_toml_path
+            .canonicalize()
+            .map_err(ApiError::internal)?
+            .to_string_lossy()
+            .to_string(),
     );
 
     for file in &payload.files {
@@ -438,7 +443,14 @@ async fn materialize_lsp_workspace(
         fs::write(&target_path, &file.content)
             .await
             .map_err(ApiError::internal)?;
-        file_paths.insert(file.path.clone(), target_path.to_string_lossy().to_string());
+        file_paths.insert(
+            file.path.clone(),
+            target_path
+                .canonicalize()
+                .map_err(ApiError::internal)?
+                .to_string_lossy()
+                .to_string(),
+        );
     }
 
     Ok(file_paths)

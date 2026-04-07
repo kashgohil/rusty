@@ -9,3 +9,4 @@ dist
 coverage
 target
 apps/api/data/progress.json
+apps/api/data/lsp-workspaces/
