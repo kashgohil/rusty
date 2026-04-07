@@ -17,7 +17,7 @@ import {
 } from '~/components/ui/tooltip'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
-import { RustLspClient, workspaceFileUri, type LspConnectionState } from '~/utils/lsp'
+import { RustLspClient, type LspConnectionState } from '~/utils/lsp'
 import { RUNNER_URL } from '~/utils/env'
 import { useLessonProgress } from '~/utils/useLessonProgress'
 
@@ -257,10 +257,13 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
               loading={<div className="editor-loading">Loading editor...</div>}
               onMount={(_, monaco) => {
                 if (!lspClientRef.current) {
-                  const client = new RustLspClient(lesson.slug, monaco, setLspState)
-                  client.connect()
-                  client.ensureModels(files)
-                  client.syncWorkspace(files)
+                  const client = new RustLspClient(
+                    lesson.slug,
+                    lesson.exercise.entryFile,
+                    monaco,
+                    setLspState,
+                  )
+                  void client.connect(files)
                   lspClientRef.current = client
                 }
               }}
@@ -277,7 +280,7 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
                 smoothScrolling: true,
                 wordWrap: 'on',
               }}
-              path={workspaceFileUri(lesson.slug, activeFile.path)}
+              path={lspClientRef.current?.getFileUri(activeFile.path) ?? activeFile.path}
               theme="rust-learning-workbench"
               value={activeFile.content}
             />

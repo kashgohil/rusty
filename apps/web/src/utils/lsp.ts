@@ -1,4 +1,8 @@
-import type { LessonFile } from '@rust-learning/shared-types'
+import type {
+  LessonFile,
+  LspSessionCreateRequest,
+  LspSessionCreateResponse,
+} from '@rust-learning/shared-types'
 import type * as Monaco from 'monaco-editor'
 import { LSP_URL } from '~/utils/env'
 
@@ -71,103 +75,59 @@ type LspLocation = {
   range: LspRange
 }
 
-type LspWorkspaceDocument = {
-  languageId: string
-  text: string
-  uri: string
+type LspSession = {
+  filePaths: Record<string, string>
+  rootPath: string
+  sessionId: string
 }
 
 export type LspConnectionState = 'connecting' | 'ready' | 'offline' | 'error'
 
-function getLspSocketUrl() {
+function getLspSocketUrl(sessionId: string) {
   const base = new URL(LSP_URL)
   base.protocol = base.protocol === 'https:' ? 'wss:' : 'ws:'
-  if (!base.pathname.endsWith('/lsp/ws')) {
-    base.pathname = `${base.pathname.replace(/\/$/, '')}/lsp/ws`
-  }
+  base.pathname = `${base.pathname.replace(/\/$/, '')}/lsp/ws`
+  base.searchParams.set('sessionId', sessionId)
   return base.toString()
 }
 
-function encodePath(path: string) {
-  return path
-    .split('/')
-    .map((segment) => encodeURIComponent(segment))
-    .join('/')
-}
-
-function lessonRootUri(lessonSlug: string) {
-  return `file:///rust-learning-lessons/${encodeURIComponent(lessonSlug)}`
-}
-
-export function workspaceFileUri(lessonSlug: string, path: string) {
-  return `${lessonRootUri(lessonSlug)}/${encodePath(path)}`
-}
-
-function cargoTomlForLesson(lessonSlug: string, files: LessonFile[]) {
-  const crateName = lessonSlug.replace(/[^a-zA-Z0-9_]+/g, "_")
-  const hasBin = files.some((file) => file.path === 'src/main.rs')
-  const hasLib = files.some((file) => file.path === 'src/lib.rs')
-  const parts = [
-    '[package]',
-    `name = "${crateName}"`,
-    'version = "0.1.0"',
-    'edition = "2024"',
-    '',
-  ]
-
-  if (hasBin && !hasLib) {
-    parts.push('[[bin]]', `name = "${crateName}"`, 'path = "src/main.rs"', '')
-  }
-
-  if (hasLib) {
-    parts.push('[lib]', 'path = "src/lib.rs"', '')
-  }
-
-  return parts.join('\n')
-}
-
-function buildWorkspaceDocuments(lessonSlug: string, files: LessonFile[]) {
-  const documents = new Map<string, LspWorkspaceDocument>()
-
-  documents.set(workspaceFileUri(lessonSlug, 'Cargo.toml'), {
-    uri: workspaceFileUri(lessonSlug, 'Cargo.toml'),
-    languageId: 'toml',
-    text: cargoTomlForLesson(lessonSlug, files),
+async function createLspSession(
+  lessonSlug: string,
+  entryFile: string,
+  files: LessonFile[],
+) {
+  const response = await fetch(`${LSP_URL}/lsp/sessions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      entryFile,
+      files,
+      lessonSlug,
+    } satisfies LspSessionCreateRequest),
   })
 
-  for (const file of files) {
-    documents.set(workspaceFileUri(lessonSlug, file.path), {
-      uri: workspaceFileUri(lessonSlug, file.path),
-      languageId: file.path.endsWith('.toml') ? 'toml' : 'rust',
-      text: file.content,
-    })
+  if (!response.ok) {
+    throw new Error('Failed to create LSP workspace')
   }
 
-  return documents
+  const payload = (await response.json()) as LspSessionCreateResponse
+  return {
+    filePaths: payload.filePaths,
+    rootPath: payload.rootPath,
+    sessionId: payload.sessionId,
+  } satisfies LspSession
 }
 
 function toLspPosition(model: Monaco.editor.ITextModel, position: Monaco.Position): LspPosition {
-  const offset = model.getOffsetAt(position)
-  const value = model.getValue()
-  let line = 0
-  let character = 0
-
-  for (let index = 0; index < offset; index += 1) {
-    const code = value.charCodeAt(index)
-
-    if (code === 10) {
-      line += 1
-      character = 0
-      continue
-    }
-
-    character += code > 0xffff ? 2 : 1
+  return {
+    line: position.lineNumber - 1,
+    character: position.column - 1,
   }
-
-  return { line, character }
 }
 
-function toMonacoRange(monaco: typeof Monaco, range: LspRange): Monaco.IRange {
+function toMonacoRange(range: LspRange): Monaco.IRange {
   return {
     startLineNumber: range.start.line + 1,
     startColumn: range.start.character + 1,
@@ -242,26 +202,43 @@ function hoverText(contents: LspHover['contents']) {
   return value ? { value } : null
 }
 
+export function workspaceFileUri(
+  filePaths: Record<string, string> | null,
+  path: string,
+) {
+  const absolutePath = filePaths?.[path]
+  return absolutePath ? `file://${absolutePath}` : `inmemory:///${path}`
+}
+
 export class RustLspClient {
   private diagnostics = new Map<string, LspDiagnostic[]>()
   private lastFiles: LessonFile[] = []
   private openedDocuments = new Map<string, string>()
-  private pending = new Map<JsonRpcId, { reject: (error: Error) => void; resolve: (value: unknown) => void }>()
+  private pending = new Map<
+    JsonRpcId,
+    { reject: (error: Error) => void; resolve: (value: unknown) => void }
+  >()
   private providers: Monaco.IDisposable[] = []
   private requestId = 1
   private socket: WebSocket | null = null
   private versions = new Map<string, number>()
   private ready = false
+  private session: LspSession | null = null
 
   constructor(
     private readonly lessonSlug: string,
+    private readonly entryFile: string,
     private readonly monaco: typeof Monaco,
     private readonly onStateChange: (state: LspConnectionState) => void,
   ) {}
 
-  connect() {
+  async connect(files: LessonFile[]) {
     this.onStateChange('connecting')
-    this.socket = new WebSocket(getLspSocketUrl())
+    this.lastFiles = files
+    this.session = await createLspSession(this.lessonSlug, this.entryFile, files)
+    this.ensureModels(files)
+
+    this.socket = new WebSocket(getLspSocketUrl(this.session.sessionId))
     this.socket.addEventListener('open', () => {
       void this.initialize()
     })
@@ -277,6 +254,121 @@ export class RustLspClient {
       this.onStateChange('error')
     })
 
+    this.registerProviders()
+  }
+
+  dispose() {
+    for (const provider of this.providers) {
+      provider.dispose()
+    }
+
+    for (const [uri] of this.openedDocuments) {
+      this.notify('textDocument/didClose', {
+        textDocument: { uri },
+      })
+    }
+
+    this.openedDocuments.clear()
+    this.versions.clear()
+    this.ready = false
+    this.socket?.close()
+    this.socket = null
+    this.session = null
+  }
+
+  getFileUri(path: string) {
+    return workspaceFileUri(this.session?.filePaths ?? null, path)
+  }
+
+  ensureModels(files: LessonFile[]) {
+    if (!this.session) {
+      return
+    }
+
+    for (const file of files.filter((item) => item.editable !== false)) {
+      const uri = this.monaco.Uri.parse(this.getFileUri(file.path))
+      const existingModel = this.monaco.editor.getModel(uri)
+
+      if (!existingModel) {
+        this.monaco.editor.createModel(file.content, 'rust', uri)
+        this.applyDiagnostics(uri.toString())
+        continue
+      }
+
+      if (existingModel.getValue() !== file.content) {
+        existingModel.setValue(file.content)
+      }
+    }
+  }
+
+  syncWorkspace(files: LessonFile[]) {
+    this.lastFiles = files
+
+    if (!this.ready || !this.session || this.socket?.readyState !== WebSocket.OPEN) {
+      return
+    }
+
+    const nextDocuments = new Map<string, { languageId: string; text: string; uri: string }>()
+
+    for (const file of files) {
+      nextDocuments.set(this.getFileUri(file.path), {
+        languageId: file.path.endsWith('.toml') ? 'toml' : 'rust',
+        text: file.content,
+        uri: this.getFileUri(file.path),
+      })
+    }
+
+    for (const [uri] of this.openedDocuments) {
+      if (nextDocuments.has(uri)) {
+        continue
+      }
+
+      this.notify('textDocument/didClose', {
+        textDocument: { uri },
+      })
+      this.openedDocuments.delete(uri)
+      this.versions.delete(uri)
+      const model = this.monaco.editor.getModel(this.monaco.Uri.parse(uri))
+      if (model) {
+        this.monaco.editor.setModelMarkers(model, 'rust-learning-lsp', [])
+      }
+    }
+
+    for (const [uri, document] of nextDocuments) {
+      const current = this.openedDocuments.get(uri)
+
+      if (current == null) {
+        this.openedDocuments.set(uri, document.text)
+        this.versions.set(uri, 1)
+        this.notify('textDocument/didOpen', {
+          textDocument: {
+            languageId: document.languageId,
+            text: document.text,
+            uri,
+            version: 1,
+          },
+        })
+        continue
+      }
+
+      if (current === document.text) {
+        continue
+      }
+
+      const nextVersion = (this.versions.get(uri) ?? 1) + 1
+      this.openedDocuments.set(uri, document.text)
+      this.versions.set(uri, nextVersion)
+      this.notify('textDocument/didChange', {
+        contentChanges: [{ text: document.text }],
+        textDocument: {
+          uri,
+          version: nextVersion,
+        },
+      })
+    }
+  }
+
+  private registerProviders() {
     this.providers.push(
       this.monaco.languages.registerCompletionItemProvider('rust', {
         provideCompletionItems: async (model, position) => {
@@ -333,7 +425,7 @@ export class RustLspClient {
 
           return {
             contents: [contents],
-            range: result?.range ? toMonacoRange(this.monaco, result.range) : undefined,
+            range: result?.range ? toMonacoRange(result.range) : undefined,
           }
         },
       }),
@@ -354,7 +446,7 @@ export class RustLspClient {
           }
 
           return {
-            range: toMonacoRange(this.monaco, target.range),
+            range: toMonacoRange(target.range),
             uri: this.monaco.Uri.parse(target.uri),
           }
         },
@@ -362,101 +454,12 @@ export class RustLspClient {
     )
   }
 
-  dispose() {
-    for (const provider of this.providers) {
-      provider.dispose()
-    }
-
-    for (const [uri] of this.openedDocuments) {
-      this.notify('textDocument/didClose', {
-        textDocument: { uri },
-      })
-    }
-
-    this.openedDocuments.clear()
-    this.versions.clear()
-    this.ready = false
-    this.socket?.close()
-    this.socket = null
-  }
-
-  ensureModels(files: LessonFile[]) {
-    for (const file of files.filter((item) => item.editable !== false)) {
-      const uri = this.monaco.Uri.parse(workspaceFileUri(this.lessonSlug, file.path))
-      const existingModel = this.monaco.editor.getModel(uri)
-
-      if (!existingModel) {
-        this.monaco.editor.createModel(file.content, 'rust', uri)
-        this.applyDiagnostics(uri.toString())
-        continue
-      }
-
-      if (existingModel.getValue() !== file.content) {
-        existingModel.setValue(file.content)
-      }
-    }
-  }
-
-  syncWorkspace(files: LessonFile[]) {
-    this.lastFiles = files
-
-    if (!this.ready || this.socket?.readyState !== WebSocket.OPEN) {
+  private async initialize() {
+    if (!this.session) {
+      this.onStateChange('error')
       return
     }
 
-    const nextDocuments = buildWorkspaceDocuments(this.lessonSlug, files)
-
-    for (const [uri] of this.openedDocuments) {
-      if (nextDocuments.has(uri)) {
-        continue
-      }
-
-      this.notify('textDocument/didClose', {
-        textDocument: { uri },
-      })
-      this.openedDocuments.delete(uri)
-      this.versions.delete(uri)
-      const model = this.monaco.editor.getModel(this.monaco.Uri.parse(uri))
-      if (model) {
-        this.monaco.editor.setModelMarkers(model, 'rust-learning-lsp', [])
-      }
-    }
-
-    for (const [uri, document] of nextDocuments) {
-      const current = this.openedDocuments.get(uri)
-
-      if (current == null) {
-        this.openedDocuments.set(uri, document.text)
-        this.versions.set(uri, 1)
-        this.notify('textDocument/didOpen', {
-          textDocument: {
-            languageId: document.languageId,
-            text: document.text,
-            uri,
-            version: 1,
-          },
-        })
-        continue
-      }
-
-      if (current === document.text) {
-        continue
-      }
-
-      const nextVersion = (this.versions.get(uri) ?? 1) + 1
-      this.openedDocuments.set(uri, document.text)
-      this.versions.set(uri, nextVersion)
-      this.notify('textDocument/didChange', {
-        contentChanges: [{ text: document.text }],
-        textDocument: {
-          uri,
-          version: nextVersion,
-        },
-      })
-    }
-  }
-
-  private async initialize() {
     try {
       await this.request('initialize', {
         capabilities: {
@@ -488,11 +491,11 @@ export class RustLspClient {
           version: '0.1.0',
         },
         processId: null,
-        rootUri: lessonRootUri(this.lessonSlug),
+        rootUri: `file://${this.session.rootPath}`,
         workspaceFolders: [
           {
             name: `lesson-${this.lessonSlug}`,
-            uri: lessonRootUri(this.lessonSlug),
+            uri: `file://${this.session.rootPath}`,
           },
         ],
       })
