@@ -54,6 +54,11 @@ type LspDiagnostic = {
   severity?: number
 }
 
+type LspTextEdit = {
+  newText: string
+  range: LspRange
+}
+
 type LspCompletionItem = {
   label: string
   detail?: string
@@ -82,6 +87,17 @@ type LspSession = {
 }
 
 export type LspConnectionState = 'connecting' | 'ready' | 'offline' | 'error'
+export type LspStatus = {
+  detail?: string
+  state: LspConnectionState
+}
+
+export type LessonDiagnostic = {
+  message: string
+  path: string
+  range: LspRange
+  severity?: number
+}
 
 function getLspSocketUrl(sessionId: string) {
   const base = new URL(LSP_URL)
@@ -202,6 +218,10 @@ function hoverText(contents: LspHover['contents']) {
   return value ? { value } : null
 }
 
+function isRustSource(path: string) {
+  return path.endsWith('.rs')
+}
+
 export function workspaceFileUri(
   filePaths: Record<string, string> | null,
   path: string,
@@ -212,6 +232,8 @@ export function workspaceFileUri(
 
 export class RustLspClient {
   private diagnostics = new Map<string, LspDiagnostic[]>()
+  private didSaveTimers = new Map<string, ReturnType<typeof globalThis.setTimeout>>()
+  private editor: Monaco.editor.IStandaloneCodeEditor | null = null
   private lastFiles: LessonFile[] = []
   private openedDocuments = new Map<string, string>()
   private pending = new Map<
@@ -229,11 +251,16 @@ export class RustLspClient {
     private readonly lessonSlug: string,
     private readonly entryFile: string,
     private readonly monaco: typeof Monaco,
-    private readonly onStateChange: (state: LspConnectionState) => void,
+    private readonly onDiagnosticsChange: (diagnostics: LessonDiagnostic[]) => void,
+    private readonly onStateChange: (state: LspStatus) => void,
   ) {}
 
+  setEditor(editor: Monaco.editor.IStandaloneCodeEditor) {
+    this.editor = editor
+  }
+
   async connect(files: LessonFile[]) {
-    this.onStateChange('connecting')
+    this.onStateChange({ state: 'connecting', detail: 'Starting lesson workspace' })
     this.lastFiles = files
     this.session = await createLspSession(this.lessonSlug, this.entryFile, files)
     this.ensureModels(files)
@@ -247,11 +274,11 @@ export class RustLspClient {
     })
     this.socket.addEventListener('close', () => {
       this.ready = false
-      this.onStateChange('offline')
+      this.onStateChange({ state: 'offline', detail: 'LSP session closed' })
     })
     this.socket.addEventListener('error', () => {
       this.ready = false
-      this.onStateChange('error')
+      this.onStateChange({ state: 'error', detail: 'Unable to reach LSP bridge' })
     })
 
     this.registerProviders()
@@ -269,11 +296,16 @@ export class RustLspClient {
     }
 
     this.openedDocuments.clear()
+    for (const timer of this.didSaveTimers.values()) {
+      globalThis.clearTimeout(timer)
+    }
+    this.didSaveTimers.clear()
     this.versions.clear()
     this.ready = false
     this.socket?.close()
     this.socket = null
     this.session = null
+    this.editor = null
   }
 
   getFileUri(path: string) {
@@ -368,6 +400,42 @@ export class RustLspClient {
     }
   }
 
+  async formatDocument(path: string) {
+    if (!this.ready || !isRustSource(path)) {
+      return false
+    }
+
+    const uri = this.getFileUri(path)
+    const model = this.monaco.editor.getModel(this.monaco.Uri.parse(uri))
+    if (!model) {
+      return false
+    }
+
+    const edits = (await this.request('textDocument/formatting', {
+      options: {
+        insertSpaces: true,
+        tabSize: 4,
+      },
+      textDocument: { uri },
+    })) as LspTextEdit[] | null
+
+    if (!edits || edits.length === 0) {
+      return true
+    }
+
+    model.pushEditOperations(
+      [],
+      edits.map((edit) => ({
+        forceMoveMarkers: true,
+        range: toMonacoRange(edit.range),
+        text: edit.newText,
+      })),
+      () => null,
+    )
+
+    return true
+  }
+
   private registerProviders() {
     this.providers.push(
       this.monaco.languages.registerCompletionItemProvider('rust', {
@@ -456,11 +524,12 @@ export class RustLspClient {
 
   private async initialize() {
     if (!this.session) {
-      this.onStateChange('error')
+      this.onStateChange({ state: 'error', detail: 'Missing lesson workspace session' })
       return
     }
 
     try {
+      this.onStateChange({ state: 'connecting', detail: 'Negotiating rust-analyzer session' })
       await this.request('initialize', {
         capabilities: {
           textDocument: {
@@ -508,15 +577,21 @@ export class RustLspClient {
             cargo: {
               allTargets: false,
             },
-            checkOnSave: false,
+            rustfmt: {
+              extraArgs: [],
+            },
+            checkOnSave: true,
           },
         },
       })
       this.syncWorkspace(this.lastFiles)
-      this.onStateChange('ready')
-    } catch {
+      this.onStateChange({ state: 'ready', detail: `Workspace ${this.session.sessionId}` })
+    } catch (error) {
       this.ready = false
-      this.onStateChange('error')
+      this.onStateChange({
+        state: 'error',
+        detail: error instanceof Error ? error.message : 'Failed to initialize LSP session',
+      })
     }
   }
 
@@ -589,7 +664,10 @@ export class RustLspClient {
             cargo: {
               allTargets: false,
             },
-            checkOnSave: false,
+            rustfmt: {
+              extraArgs: [],
+            },
+            checkOnSave: true,
           }))
 
         this.send({
@@ -609,6 +687,11 @@ export class RustLspClient {
         })
         return
       default:
+        if (message.method === 'window/showMessage') {
+          const detail =
+            (message.params as { message?: string } | undefined)?.message ?? 'LSP notification'
+          this.onStateChange({ state: this.ready ? 'ready' : 'connecting', detail })
+        }
         this.send({
           id: message.id,
           jsonrpc: '2.0',

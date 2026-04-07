@@ -1,5 +1,5 @@
 import Editor from '@monaco-editor/react'
-import { Check, Play, RotateCcw } from 'lucide-react'
+import { Check, Play, RotateCcw, WandSparkles } from 'lucide-react'
 import type {
   ExecutionCheckResult,
   ExecutionMode,
@@ -10,6 +10,7 @@ import type {
 } from '@rust-learning/shared-types'
 import type { ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type * as Monaco from 'monaco-editor'
 import {
   Tooltip,
   TooltipContent,
@@ -17,7 +18,11 @@ import {
 } from '~/components/ui/tooltip'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
-import { RustLspClient, type LspConnectionState } from '~/utils/lsp'
+import {
+  RustLspClient,
+  type LessonDiagnostic,
+  type LspStatus,
+} from '~/utils/lsp'
 import { RUNNER_URL } from '~/utils/env'
 import { useLessonProgress } from '~/utils/useLessonProgress'
 
@@ -65,7 +70,11 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
   const [files, setFiles] = useState<LessonFile[]>(lesson.exercise.files)
   const [activePath, setActivePath] = useState(lesson.exercise.entryFile)
   const [isHydrated, setIsHydrated] = useState(false)
-  const [lspState, setLspState] = useState<LspConnectionState>('connecting')
+  const [diagnostics, setDiagnostics] = useState<LessonDiagnostic[]>([])
+  const [lspStatus, setLspStatus] = useState<LspStatus>({
+    detail: 'Starting lesson workspace',
+    state: 'connecting',
+  })
   const [result, setResult] = useState<ExecutionResult>({
     status: 'idle',
     headline: 'Ready to run',
@@ -74,6 +83,7 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
   })
   const [activeAction, setActiveAction] = useState<ExecutionMode | null>(null)
   const lspClientRef = useRef<RustLspClient | null>(null)
+  const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null)
 
   const activeFile =
     files.find((file) => file.path === activePath) ??
@@ -145,6 +155,48 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
     )
   }
 
+  async function handleFormat() {
+    if (!activeFile || !lspClientRef.current) {
+      return
+    }
+
+    const formatted = await lspClientRef.current.formatDocument(activeFile.path)
+    if (!formatted) {
+      return
+    }
+
+    const model = editorRef.current?.getModel()
+    if (!model) {
+      return
+    }
+
+    updateFile(activeFile.path, model.getValue())
+  }
+
+  function openDiagnostic(diagnostic: LessonDiagnostic) {
+    setActivePath(diagnostic.path)
+    const client = lspClientRef.current
+    const editor = editorRef.current
+    if (!client || !editor) {
+      return
+    }
+
+    const targetUri = client.getFileUri(diagnostic.path)
+    window.setTimeout(() => {
+      const model = editor.getModel()
+      if (!model || model.uri.toString() !== targetUri) {
+        return
+      }
+
+      editor.focus()
+      editor.setPosition({
+        column: diagnostic.range.start.character + 1,
+        lineNumber: diagnostic.range.start.line + 1,
+      })
+      editor.revealLineInCenter(diagnostic.range.start.line + 1)
+    }, 0)
+  }
+
   async function execute(mode: ExecutionMode) {
     setActiveAction(mode)
     setResult({
@@ -201,11 +253,13 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
         <div>
           <p className="eyebrow">Lesson IDE</p>
           <h2>{activeFile?.path ?? lesson.exercise.entryFile}</h2>
+          <p className="workbench-note">LSP: {lspStatus.detail}</p>
         </div>
         <div className="workbench-status">
-          <span>lsp {lspState}</span>
+          <span>lsp {lspStatus.state}</span>
           <span>{progress[lesson.slug]?.status ?? 'not_started'}</span>
           <span>{result.status}</span>
+          <span>{diagnostics.length} issues</span>
           <span>{files.length} files</span>
         </div>
       </div>
@@ -255,14 +309,17 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
               defaultLanguage="rust"
               height="58vh"
               loading={<div className="editor-loading">Loading editor...</div>}
-              onMount={(_, monaco) => {
+              onMount={(editor, monaco) => {
+                editorRef.current = editor
                 if (!lspClientRef.current) {
                   const client = new RustLspClient(
                     lesson.slug,
                     lesson.exercise.entryFile,
                     monaco,
-                    setLspState,
+                    setDiagnostics,
+                    setLspStatus,
                   )
+                  client.setEditor(editor)
                   void client.connect(files)
                   lspClientRef.current = client
                 }
@@ -300,6 +357,15 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
             <Badge className={`output-badge output-badge-${result.status}`}>
               {result.status}
             </Badge>
+            <IconAction
+              ariaLabel="Format document"
+              className="icon-action"
+              disabled={activeAction !== null || lspStatus.state !== 'ready'}
+              onClick={() => void handleFormat()}
+              tooltip="Format document"
+            >
+              <WandSparkles />
+            </IconAction>
             <IconAction
               ariaLabel="Run lesson"
               className="icon-action icon-action-run"
