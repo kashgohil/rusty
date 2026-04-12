@@ -1,19 +1,25 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
+import { useState } from 'react'
 import { Button } from '~/components/ui/button'
 import {
   Card,
   CardContent,
 } from '~/components/ui/card'
+import { buildLearnerUrl, validateLearnerSearch } from '~/utils/learner'
+import { useLearnerIdentity } from '~/utils/useLearnerIdentity'
 import { useLessonProgress } from '~/utils/useLessonProgress'
 import { useLessons } from '~/utils/useLessons'
 
 export const Route = createFileRoute('/')({
+  validateSearch: validateLearnerSearch,
   component: HomePage,
 })
 
 function HomePage() {
+  const [copied, setCopied] = useState(false)
   const { lessons } = useLessons()
-  const { progress } = useLessonProgress()
+  const { learnerId, learnerSearch } = useLearnerIdentity()
+  const { progress } = useLessonProgress(learnerId)
   const totalLessons = lessons.length
   const totalStages = new Set(lessons.map((lesson) => lesson.stage)).size
   const completedLessons = lessons.filter(
@@ -22,6 +28,16 @@ function HomePage() {
   const startedLessons = lessons.filter(
     (lesson) => progress[lesson.slug]?.status && progress[lesson.slug]?.status !== 'not_started',
   ).length
+
+  async function copyLearnerLink() {
+    if (!learnerId || typeof window === 'undefined') {
+      return
+    }
+
+    await window.navigator.clipboard.writeText(buildLearnerUrl('/lessons', learnerId))
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 1800)
+  }
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-12 px-6 pb-24 pt-10">
@@ -37,9 +53,14 @@ function HomePage() {
             tooling. The next step is wiring Monaco, the runner service, and remote
             LSP support into the lesson experience.
           </p>
+          {learnerId ? (
+            <p className="workbench-note mt-6">learner {learnerId}</p>
+          ) : null}
           <div className="hero-actions">
             <Button asChild className="primary-pill rounded-full px-5 py-4" size="lg">
-              <Link to="/lessons">Open curriculum</Link>
+              <Link search={learnerSearch} to="/lessons">
+                Open curriculum
+              </Link>
             </Button>
             <Button
               asChild
@@ -47,7 +68,18 @@ function HomePage() {
               size="lg"
               variant="outline"
             >
-              <Link to="/docs/architecture">Review architecture</Link>
+              <Link search={learnerSearch} to="/docs/architecture">
+                Review architecture
+              </Link>
+            </Button>
+            <Button
+              className="ghost-pill rounded-full border px-5 py-4"
+              onClick={() => void copyLearnerLink()}
+              size="lg"
+              type="button"
+              variant="outline"
+            >
+              {copied ? 'Copied learner link' : 'Copy learner link'}
             </Button>
           </div>
         </Card>

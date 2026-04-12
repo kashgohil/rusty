@@ -6,33 +6,54 @@ import {
   updateLessonProgress,
 } from './progress'
 
-export function useLessonProgress() {
+export function useLessonProgress(learnerId: string | null) {
   const [progress, setProgress] = useState<LessonProgressMap>({})
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(learnerId !== null)
 
   useEffect(() => {
-    let cancelled = false
+    if (!learnerId) {
+      setProgress({})
+      setIsLoading(false)
+      return
+    }
 
-    void readLessonProgress().then((next) => {
-      if (!cancelled) {
-        setProgress(next)
-        setIsLoading(false)
-      }
-    })
+    let cancelled = false
+    setIsLoading(true)
+
+    void readLessonProgress(learnerId)
+      .then((next) => {
+        if (!cancelled) {
+          setProgress(next)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setProgress({})
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoading(false)
+        }
+      })
 
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [learnerId])
 
   async function persistLessonProgress(
     lessonSlug: string,
     status: 'not_started' | 'in_progress' | 'completed',
   ) {
+    if (!learnerId) {
+      return
+    }
+
     setProgress((current) => optimisticProgressUpdate(current, lessonSlug, status))
 
     try {
-      const next = await updateLessonProgress(lessonSlug, status)
+      const next = await updateLessonProgress(learnerId, lessonSlug, status)
       setProgress(next)
     } catch {
       // Keep optimistic state for now; retry logic can come later.

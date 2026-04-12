@@ -2,8 +2,10 @@ import { ErrorComponent, Link, rootRouteId, useMatch } from '@tanstack/react-rou
 import { Alert, AlertDescription, AlertTitle } from '~/components/ui/alert'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent } from '~/components/ui/card'
+import { useLearnerIdentity } from '~/utils/useLearnerIdentity'
 
 export function DefaultCatchBoundary({ error }: { error: Error }) {
+  const { learnerSearch } = useLearnerIdentity()
   const isRoot = useMatch({
     strict: false,
     select: (state) => state.id === rootRouteId,
@@ -25,7 +27,9 @@ export function DefaultCatchBoundary({ error }: { error: Error }) {
           asChild
           className="rounded-full border-amber-200/30 bg-amber-100 px-5 text-stone-950 hover:bg-amber-200"
         >
-          <Link to="/">Back to home</Link>
+          <Link search={learnerSearch} to="/">
+            Back to home
+          </Link>
         </Button>
         {!isRoot ? (
           <Button

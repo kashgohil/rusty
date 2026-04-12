@@ -5,14 +5,18 @@ import { Alert, AlertDescription, AlertTitle } from '~/components/ui/alert'
 import { Badge } from '~/components/ui/badge'
 import { Card, CardContent } from '~/components/ui/card'
 import { Separator } from '~/components/ui/separator'
+import { validateLearnerSearch } from '~/utils/learner'
+import { useLearnerIdentity } from '~/utils/useLearnerIdentity'
 import { useLesson } from '~/utils/useLessons'
 
 export const Route = createFileRoute('/lessons/$lessonSlug')({
+  validateSearch: validateLearnerSearch,
   component: LessonDetailPage,
 })
 
 function LessonDetailPage() {
   const { lessonSlug } = Route.useParams()
+  const { learnerId } = useLearnerIdentity()
   const { lesson, isLoading, error } = useLesson(lessonSlug)
   const shellRef = useRef<HTMLElement | null>(null)
   const [sidebarWidth, setSidebarWidth] = useState(31)
@@ -141,7 +145,7 @@ function LessonDetailPage() {
 
       <div aria-hidden="true" className="lesson-splitter" data-splitter />
 
-      <LessonWorkbench lesson={lesson} />
+      <LessonWorkbench learnerId={learnerId} lesson={lesson} />
     </section>
   )
 }

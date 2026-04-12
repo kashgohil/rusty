@@ -4,8 +4,10 @@ import {
   CardContent,
 } from '~/components/ui/card'
 import { Separator } from '~/components/ui/separator'
+import { validateLearnerSearch } from '~/utils/learner'
 
 export const Route = createFileRoute('/docs/architecture')({
+  validateSearch: validateLearnerSearch,
   component: ArchitectureDocPage,
 })
 

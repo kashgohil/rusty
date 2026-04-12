@@ -7,6 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from '~/components/ui/card'
+import { useLearnerIdentity } from '~/utils/useLearnerIdentity'
 import { useLessonProgress } from '~/utils/useLessonProgress'
 import { useLessons } from '~/utils/useLessons'
 
@@ -15,7 +16,8 @@ export const Route = createFileRoute('/lessons/')({
 })
 
 function LessonsIndexPage() {
-  const { progress } = useLessonProgress()
+  const { learnerId, learnerSearch } = useLearnerIdentity()
+  const { progress } = useLessonProgress(learnerId)
   const { lessons, isLoading, error } = useLessons()
   const stageOrder = Array.from(new Set(lessons.map((lesson) => lesson.stage)))
 
@@ -88,6 +90,7 @@ function LessonsIndexPage() {
                   className="block"
                   key={lesson.slug}
                   params={{ lessonSlug: lesson.slug }}
+                  search={learnerSearch}
                   to="/lessons/$lessonSlug"
                 >
                   <Card className="lesson-card">

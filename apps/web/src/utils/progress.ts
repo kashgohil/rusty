@@ -3,17 +3,17 @@ import type {
   LessonProgressStatus,
 } from '@rust-learning/shared-types'
 import { fetchProgress, persistProgress } from './api'
-import { getLearnerId } from './learner'
 
-export async function readLessonProgress() {
-  return fetchProgress(getLearnerId())
+export async function readLessonProgress(learnerId: string) {
+  return fetchProgress(learnerId)
 }
 
 export async function updateLessonProgress(
+  learnerId: string,
   lessonSlug: string,
   status: LessonProgressStatus,
 ) {
-  return persistProgress(getLearnerId(), {
+  return persistProgress(learnerId, {
     lessonSlug,
     status,
   })

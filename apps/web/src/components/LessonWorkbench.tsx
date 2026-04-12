@@ -73,12 +73,18 @@ function IconAction({
   )
 }
 
-export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
+export function LessonWorkbench({
+  learnerId,
+  lesson,
+}: {
+  learnerId: string | null
+  lesson: Lesson
+}) {
   const storageKey = useMemo(
     () => `rust-learning:lesson:${lesson.slug}:files`,
     [lesson.slug],
   )
-  const { progress, persistLessonProgress } = useLessonProgress()
+  const { progress, persistLessonProgress } = useLessonProgress(learnerId)
   const [files, setFiles] = useState<LessonFile[]>(lesson.exercise.files)
   const [activePath, setActivePath] = useState(lesson.exercise.entryFile)
   const [isHydrated, setIsHydrated] = useState(false)

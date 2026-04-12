@@ -1,8 +1,11 @@
 import { Link } from '@tanstack/react-router'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent } from '~/components/ui/card'
+import { useLearnerIdentity } from '~/utils/useLearnerIdentity'
 
 export function NotFound() {
+  const { learnerSearch } = useLearnerIdentity()
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col justify-center px-6 py-16 text-stone-100">
       <Card className="border-[rgb(162_143_108_/_0.18)] bg-[linear-gradient(180deg,rgba(18,25,27,0.92),rgba(11,15,16,0.88))] py-0 text-inherit">
@@ -21,7 +24,9 @@ export function NotFound() {
               className="rounded-full border-stone-700 bg-transparent px-5 text-stone-100 hover:border-cyan-300 hover:bg-transparent hover:text-cyan-200"
               variant="outline"
             >
-              <Link to="/lessons">Open curriculum</Link>
+              <Link search={learnerSearch} to="/lessons">
+                Open curriculum
+              </Link>
             </Button>
           </div>
         </CardContent>
