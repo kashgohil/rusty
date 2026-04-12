@@ -99,6 +99,11 @@ export type LessonDiagnostic = {
   severity?: number
 }
 
+export type LessonEditorLocation = {
+  path: string
+  range: LspRange
+}
+
 function getLspSocketUrl(sessionId: string) {
   const base = new URL(LSP_URL)
   base.protocol = base.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -246,6 +251,9 @@ export class RustLspClient {
   private versions = new Map<string, number>()
   private ready = false
   private session: LspSession | null = null
+  private onDefinitionNavigation:
+    | ((payload: { from: LessonEditorLocation; to: LessonEditorLocation }) => void)
+    | null = null
 
   constructor(
     private readonly lessonSlug: string,
@@ -257,6 +265,12 @@ export class RustLspClient {
 
   setEditor(editor: Monaco.editor.IStandaloneCodeEditor) {
     this.editor = editor
+  }
+
+  setDefinitionNavigationHandler(
+    handler: ((payload: { from: LessonEditorLocation; to: LessonEditorLocation }) => void) | null,
+  ) {
+    this.onDefinitionNavigation = handler
   }
 
   async connect(files: LessonFile[]) {
@@ -528,6 +542,24 @@ export class RustLspClient {
           const target = Array.isArray(result) ? result[0] : result
           if (!target) {
             return null
+          }
+
+          const fromPath = this.getPathForUri(model.uri.toString())
+          const toPath = this.getPathForUri(target.uri)
+          if (fromPath && toPath) {
+            this.onDefinitionNavigation?.({
+              from: {
+                path: fromPath,
+                range: {
+                  start: toLspPosition(model, position),
+                  end: toLspPosition(model, position),
+                },
+              },
+              to: {
+                path: toPath,
+                range: target.range,
+              },
+            })
           }
 
           const targetModel = this.monaco.editor.getModel(this.monaco.Uri.parse(target.uri))

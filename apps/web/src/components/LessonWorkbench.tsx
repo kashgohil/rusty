@@ -1,5 +1,16 @@
 import Editor from '@monaco-editor/react'
-import { AlertTriangle, Check, Play, RotateCcw, WandSparkles } from 'lucide-react'
+import {
+  AlertCircle,
+  AlertTriangle,
+  ArrowLeft,
+  Check,
+  CircleAlert,
+  FileCode2,
+  Info,
+  Play,
+  RotateCcw,
+  WandSparkles,
+} from 'lucide-react'
 import type {
   ExecutionCheckResult,
   ExecutionMode,
@@ -20,6 +31,7 @@ import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import {
   RustLspClient,
+  type LessonEditorLocation,
   type LessonDiagnostic,
   type LspStatus,
 } from '~/utils/lsp'
@@ -75,6 +87,8 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
     detail: 'Starting lesson workspace',
     state: 'connecting',
   })
+  const [actionMessage, setActionMessage] = useState<string | null>(null)
+  const [navigationDepth, setNavigationDepth] = useState(0)
   const [result, setResult] = useState<ExecutionResult>({
     status: 'idle',
     headline: 'Ready to run',
@@ -84,11 +98,25 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
   const [activeAction, setActiveAction] = useState<ExecutionMode | null>(null)
   const lspClientRef = useRef<RustLspClient | null>(null)
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null)
+  const navigationHistoryRef = useRef<LessonEditorLocation[]>([])
+  const suppressHistoryRef = useRef(false)
 
   const activeFile =
     files.find((file) => file.path === activePath) ??
     files.find((file) => file.path === lesson.exercise.entryFile) ??
     files[0]
+  const visibleFiles = files.filter((file) => file.editable !== false)
+  const groupedDiagnostics = useMemo(() => {
+    const groups = new Map<string, LessonDiagnostic[]>()
+
+    for (const diagnostic of diagnostics) {
+      const current = groups.get(diagnostic.path) ?? []
+      current.push(diagnostic)
+      groups.set(diagnostic.path, current)
+    }
+
+    return Array.from(groups.entries()).map(([path, items]) => ({ path, items }))
+  }, [diagnostics])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -124,6 +152,18 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
   }, [files, isHydrated, lesson.exercise.files, lesson.slug, storageKey, persistLessonProgress])
 
   useEffect(() => {
+    if (!actionMessage || typeof window === 'undefined') {
+      return
+    }
+
+    const timeout = window.setTimeout(() => {
+      setActionMessage(null)
+    }, 2200)
+
+    return () => window.clearTimeout(timeout)
+  }, [actionMessage])
+
+  useEffect(() => {
     if (!lspClientRef.current) {
       return
     }
@@ -151,6 +191,50 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
   }, [activePath, files, lspStatus.state])
 
   useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    function handleShortcut(event: KeyboardEvent) {
+      const target = event.target
+      if (
+        target instanceof HTMLElement &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable)
+      ) {
+        return
+      }
+
+      const isPrimary = event.metaKey || event.ctrlKey
+      if (isPrimary && event.key === 'Enter') {
+        event.preventDefault()
+        if (event.shiftKey) {
+          void execute('check')
+          return
+        }
+
+        void execute('run')
+        return
+      }
+
+      if (event.shiftKey && event.altKey && event.key.toLowerCase() === 'f') {
+        event.preventDefault()
+        void handleFormat()
+        return
+      }
+
+      if (isPrimary && event.key === '[' && navigationHistoryRef.current.length > 0) {
+        event.preventDefault()
+        navigateBack()
+      }
+    }
+
+    window.addEventListener('keydown', handleShortcut)
+    return () => window.removeEventListener('keydown', handleShortcut)
+  })
+
+  useEffect(() => {
     return () => {
       lspClientRef.current?.dispose()
       lspClientRef.current = null
@@ -160,6 +244,9 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
   function handleReset() {
     setFiles(lesson.exercise.files)
     setActivePath(lesson.exercise.entryFile)
+    navigationHistoryRef.current = []
+    setNavigationDepth(0)
+    setActionMessage('Starter workspace restored')
     setResult({
       status: 'idle',
       headline: 'Starter restored',
@@ -180,6 +267,7 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
 
     const formatted = await lspClientRef.current.formatDocument(activeFile.path)
     if (!formatted) {
+      setActionMessage('Formatting unavailable for this file')
       return
     }
 
@@ -189,17 +277,18 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
     }
 
     updateFile(activeFile.path, model.getValue())
+    setActionMessage(`Formatted ${activeFile.path}`)
   }
 
-  function openDiagnostic(diagnostic: LessonDiagnostic) {
-    setActivePath(diagnostic.path)
+  function focusLocation(location: LessonEditorLocation) {
+    setActivePath(location.path)
     const client = lspClientRef.current
     const editor = editorRef.current
     if (!client || !editor) {
       return
     }
 
-    const targetUri = client.getFileUri(diagnostic.path)
+    const targetUri = client.getFileUri(location.path)
     window.setTimeout(() => {
       const model = editor.getModel()
       if (!model || model.uri.toString() !== targetUri) {
@@ -208,15 +297,55 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
 
       editor.focus()
       editor.setPosition({
-        column: diagnostic.range.start.character + 1,
-        lineNumber: diagnostic.range.start.line + 1,
+        column: location.range.start.character + 1,
+        lineNumber: location.range.start.line + 1,
       })
-      editor.revealLineInCenter(diagnostic.range.start.line + 1)
+      editor.revealLineInCenter(location.range.start.line + 1)
     }, 0)
+  }
+
+  function openDiagnostic(diagnostic: LessonDiagnostic) {
+    focusLocation({
+      path: diagnostic.path,
+      range: diagnostic.range,
+    })
+  }
+
+  function handleDefinitionNavigation(payload: {
+    from: LessonEditorLocation
+    to: LessonEditorLocation
+  }) {
+    if (payload.from.path === payload.to.path) {
+      return
+    }
+
+    navigationHistoryRef.current = [...navigationHistoryRef.current, payload.from]
+    setNavigationDepth(navigationHistoryRef.current.length)
+  }
+
+  function navigateBack() {
+    const previous = navigationHistoryRef.current.at(-1)
+    if (!previous) {
+      return
+    }
+
+    navigationHistoryRef.current = navigationHistoryRef.current.slice(0, -1)
+    setNavigationDepth(navigationHistoryRef.current.length)
+    suppressHistoryRef.current = true
+    focusLocation(previous)
+    setActionMessage(`Returned to ${previous.path}`)
+    window.setTimeout(() => {
+      suppressHistoryRef.current = false
+    }, 0)
+  }
+
+  function selectFile(path: string) {
+    setActivePath(path)
   }
 
   async function execute(mode: ExecutionMode) {
     setActiveAction(mode)
+    setActionMessage(mode === 'run' ? 'Running workspace' : 'Checking lesson')
     setResult({
       status: 'running',
       headline: mode === 'run' ? 'Sending workspace to runner' : 'Checking lesson workspace',
@@ -245,6 +374,13 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
       const nextResult = mode === 'check' ? formatCheckResult(payload) : payload
 
       setResult(nextResult)
+      setActionMessage(
+        mode === 'run'
+          ? 'Workspace run finished'
+          : nextResult.passed
+            ? 'Lesson checks passed'
+            : 'Lesson checks failed',
+      )
 
       if (mode === 'check' && nextResult.passed) {
         await persistLessonProgress(lesson.slug, 'completed')
@@ -252,6 +388,7 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
         await persistLessonProgress(lesson.slug, 'in_progress')
       }
     } catch {
+      setActionMessage('Runner request failed')
       setResult({
         status: 'error',
         headline: 'Runner is unreachable',
@@ -290,7 +427,7 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
               <Button
                 className={`file-tab ${file.path === activeFile?.path ? 'is-active' : ''}`}
                 key={file.path}
-                onClick={() => setActivePath(file.path)}
+                onClick={() => selectFile(file.path)}
                 size="sm"
                 type="button"
                 variant="ghost"
@@ -308,6 +445,27 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
         </aside>
 
         <div className="editor-shell">
+          <div className="editor-tabs">
+            <div className="editor-tabs-list">
+              {visibleFiles.map((file) => (
+                <Button
+                  className={`editor-tab ${file.path === activeFile?.path ? 'is-active' : ''}`}
+                  key={file.path}
+                  onClick={() => selectFile(file.path)}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  <FileCode2 />
+                  <span>{basename(file.path)}</span>
+                </Button>
+              ))}
+            </div>
+            <div className="editor-tabs-meta">
+              <span>{activeFile?.path}</span>
+              {actionMessage ? <Badge className="editor-feedback">{actionMessage}</Badge> : null}
+            </div>
+          </div>
           {activeFile ? (
             <Editor
               beforeMount={(monaco) => {
@@ -338,6 +496,11 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
                     setLspStatus,
                   )
                   client.setEditor(editor)
+                  client.setDefinitionNavigationHandler((payload) => {
+                    if (!suppressHistoryRef.current) {
+                      handleDefinitionNavigation(payload)
+                    }
+                  })
                   void client.connect(files)
                   lspClientRef.current = client
                 }
@@ -383,6 +546,15 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
             <Badge className={`output-badge output-badge-${result.status}`}>
               {result.status}
             </Badge>
+            <IconAction
+              ariaLabel="Go back"
+              className="icon-action"
+              disabled={navigationDepth === 0}
+              onClick={navigateBack}
+              tooltip="Go back"
+            >
+              <ArrowLeft />
+            </IconAction>
             <IconAction
               ariaLabel="Format document"
               className="icon-action"
@@ -433,30 +605,91 @@ export function LessonWorkbench({ lesson }: { lesson: Lesson }) {
           <p className="diagnostics-empty">No diagnostics in the current lesson workspace.</p>
         ) : (
           <div className="diagnostics-list">
-            {diagnostics.map((diagnostic, index) => (
-              <button
-                className="diagnostic-item"
-                key={`${diagnostic.path}-${diagnostic.range.start.line}-${index}`}
-                onClick={() => openDiagnostic(diagnostic)}
-                type="button"
-              >
-                <span className="diagnostic-icon">
-                  <AlertTriangle />
-                </span>
-                <span className="diagnostic-copy">
-                  <strong>{diagnostic.path}</strong>
-                  <span>{diagnostic.message}</span>
-                  <small>
-                    line {diagnostic.range.start.line + 1}, col {diagnostic.range.start.character + 1}
-                  </small>
-                </span>
-              </button>
+            {groupedDiagnostics.map((group) => (
+              <section className="diagnostic-group" key={group.path}>
+                <div className="diagnostic-group-header">
+                  <strong>{group.path}</strong>
+                  <span>{group.items.length}</span>
+                </div>
+                {group.items.map((diagnostic, index) => (
+                  <button
+                    className={`diagnostic-item diagnostic-item-${severityTone(diagnostic.severity)}`}
+                    key={`${group.path}-${diagnostic.range.start.line}-${index}`}
+                    onClick={() => openDiagnostic(diagnostic)}
+                    type="button"
+                  >
+                    <span className="diagnostic-icon">
+                      <DiagnosticIcon severity={diagnostic.severity} />
+                    </span>
+                    <span className="diagnostic-copy">
+                      <span>{diagnostic.message}</span>
+                      <small>
+                        {severityLabel(diagnostic.severity)} · line {diagnostic.range.start.line + 1}, col{' '}
+                        {diagnostic.range.start.character + 1}
+                      </small>
+                    </span>
+                  </button>
+                ))}
+              </section>
             ))}
           </div>
         )}
       </div>
     </article>
   )
+}
+
+function DiagnosticIcon({ severity }: { severity?: number }) {
+  if (severity === 1) {
+    return <AlertCircle />
+  }
+
+  if (severity === 2) {
+    return <AlertTriangle />
+  }
+
+  if (severity === 3) {
+    return <Info />
+  }
+
+  return <CircleAlert />
+}
+
+function severityLabel(severity?: number) {
+  if (severity === 1) {
+    return 'error'
+  }
+
+  if (severity === 2) {
+    return 'warning'
+  }
+
+  if (severity === 3) {
+    return 'info'
+  }
+
+  return 'hint'
+}
+
+function severityTone(severity?: number) {
+  if (severity === 1) {
+    return 'error'
+  }
+
+  if (severity === 2) {
+    return 'warning'
+  }
+
+  if (severity === 3) {
+    return 'info'
+  }
+
+  return 'hint'
+}
+
+function basename(path: string) {
+  const segments = path.split('/')
+  return segments.at(-1) ?? path
 }
 
 function formatCheckResult(payload: ExecutionResult): ExecutionResult {

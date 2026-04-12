@@ -409,6 +409,86 @@
     border-bottom: 1px solid rgb(162 143 108 / 0.14);
     min-width: 0;
     height: 100%;
+    display: grid;
+    grid-template-rows: auto 1fr;
+  }
+
+  .editor-tabs {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    min-width: 0;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid rgb(162 143 108 / 0.14);
+    background: rgb(9 14 15 / 0.92);
+  }
+
+  .editor-tabs-list {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    min-width: 0;
+    overflow-x: auto;
+  }
+
+  .editor-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    max-width: 12rem;
+    border: 1px solid rgb(162 143 108 / 0.08);
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.02);
+    color: rgb(243 239 230 / 0.7);
+    padding-inline: 0.8rem;
+  }
+
+  .editor-tab svg {
+    width: 0.9rem;
+    height: 0.9rem;
+    flex: none;
+  }
+
+  .editor-tab span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .editor-tab.is-active,
+  .editor-tab:hover {
+    border-color: rgb(124 226 208 / 0.3);
+    background: rgb(124 226 208 / 0.1);
+    color: rgb(243 239 230 / 0.96);
+  }
+
+  .editor-tabs-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+    color: rgb(243 239 230 / 0.52);
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .editor-tabs-meta span {
+    max-width: 18rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .editor-feedback {
+    border-radius: 999px;
+    background: rgb(124 226 208 / 0.14);
+    color: rgb(166 244 232);
+    padding: 0.35rem 0.7rem;
+    font-size: 0.68rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
   }
 
   .editor-layout {
@@ -585,6 +665,32 @@
     display: grid;
   }
 
+  .diagnostic-group + .diagnostic-group {
+    border-top: 1px solid rgb(162 143 108 / 0.08);
+  }
+
+  .diagnostic-group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1.2rem;
+    background: rgb(255 255 255 / 0.02);
+  }
+
+  .diagnostic-group-header strong {
+    color: rgb(243 239 230 / 0.88);
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+
+  .diagnostic-group-header span {
+    color: rgb(243 239 230 / 0.46);
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
   .diagnostic-item {
     display: flex;
     align-items: start;
@@ -602,6 +708,19 @@
     background: rgb(239 107 71 / 0.08);
   }
 
+  .diagnostic-item-error:hover {
+    background: rgb(239 107 71 / 0.08);
+  }
+
+  .diagnostic-item-warning:hover {
+    background: rgb(241 166 59 / 0.08);
+  }
+
+  .diagnostic-item-info:hover,
+  .diagnostic-item-hint:hover {
+    background: rgb(124 226 208 / 0.08);
+  }
+
   .diagnostic-icon {
     display: inline-flex;
     align-items: center;
@@ -615,6 +734,15 @@
   .diagnostic-icon svg {
     width: 0.95rem;
     height: 0.95rem;
+  }
+
+  .diagnostic-item-warning .diagnostic-icon {
+    color: rgb(248 205 131);
+  }
+
+  .diagnostic-item-info .diagnostic-icon,
+  .diagnostic-item-hint .diagnostic-icon {
+    color: rgb(166 244 232);
   }
 
   .diagnostic-copy {
@@ -714,6 +842,16 @@
   .file-sidebar {
     border-right: 0;
     border-bottom: 1px solid rgb(162 143 108 / 0.14);
+  }
+
+  .editor-tabs {
+    flex-direction: column;
+    align-items: start;
+  }
+
+  .editor-tabs-meta {
+    width: 100%;
+    justify-content: space-between;
   }
 }
 
