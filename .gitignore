@@ -9,4 +9,5 @@ dist
 coverage
 target
 apps/api/data/progress.json
+apps/api/data/*.sqlite
 apps/api/data/lsp-workspaces/

@@ -8,6 +8,7 @@ use axum::{
     response::IntoResponse,
     routing::{get, post},
 };
+use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{
@@ -34,7 +35,7 @@ const DEFAULT_RUST_ANALYZER_BIN: &str = "rust-analyzer";
 #[derive(Clone)]
 struct AppState {
     lessons_path: PathBuf,
-    progress_path: PathBuf,
+    progress_db_path: PathBuf,
     lsp_workspaces_root: PathBuf,
     progress_lock: Arc<Mutex<()>>,
     lsp_session_counter: Arc<AtomicU64>,
@@ -50,8 +51,6 @@ struct LessonProgressEntry {
 }
 
 type LessonProgressMap = HashMap<String, LessonProgressEntry>;
-type LearnerProgressStore = HashMap<String, LessonProgressMap>;
-
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct LessonProgressUpdateRequest {
@@ -117,7 +116,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let state = AppState {
         lessons_path: workspace_root.join("packages/lesson-content/src/lessons.json"),
-        progress_path: PathBuf::from("data/progress.json"),
+        progress_db_path: PathBuf::from("data/progress.sqlite"),
         lsp_workspaces_root: workspace_root.join("apps/api/data/lsp-workspaces"),
         progress_lock: Arc::new(Mutex::new(())),
         lsp_session_counter: Arc::new(AtomicU64::new(1)),
@@ -126,7 +125,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap_or_else(|_| DEFAULT_RUST_ANALYZER_BIN.to_string()),
     };
 
-    ensure_progress_store_exists(&state.progress_path).await?;
+    ensure_progress_db_exists(&state.progress_db_path)
+        .await
+        .map_err(|error| -> Box<dyn std::error::Error> { Box::new(std::io::Error::other(error.message)) })?;
     fs::create_dir_all(&state.lsp_workspaces_root).await?;
 
     let app = Router::new()
@@ -589,8 +590,8 @@ async fn get_progress(
     State(state): State<AppState>,
     Path(learner_id): Path<String>,
 ) -> Result<Json<LessonProgressMap>, ApiError> {
-    let store = read_progress_store(&state.progress_path).await?;
-    Ok(Json(store.get(&learner_id).cloned().unwrap_or_default()))
+    let progress = read_progress_store(&state.progress_db_path, &learner_id).await?;
+    Ok(Json(progress))
 }
 
 async fn update_progress(
@@ -599,23 +600,16 @@ async fn update_progress(
     Json(payload): Json<LessonProgressUpdateRequest>,
 ) -> Result<Json<LessonProgressMap>, ApiError> {
     let _guard = state.progress_lock.lock().await;
-    let mut store = read_progress_store(&state.progress_path).await?;
-    let next_progress = {
-        let learner_progress = store.entry(learner_id).or_default();
-
-        learner_progress.insert(
-            payload.lesson_slug,
-            LessonProgressEntry {
-                status: payload.status,
-                updated_at: chrono_like_now(),
-            },
-        );
-
-        learner_progress.clone()
-    };
-
-    write_progress_store(&state.progress_path, &store).await?;
-
+    let updated_at = chrono_like_now();
+    write_progress_entry(
+        &state.progress_db_path,
+        &learner_id,
+        &payload.lesson_slug,
+        &payload.status,
+        &updated_at,
+    )
+    .await?;
+    let next_progress = read_progress_store(&state.progress_db_path, &learner_id).await?;
     Ok(Json(next_progress))
 }
 
@@ -625,30 +619,105 @@ async fn read_lessons(path: &PathBuf) -> Result<Value, ApiError> {
     serde_json::from_str(&contents).map_err(ApiError::internal)
 }
 
-async fn ensure_progress_store_exists(path: &PathBuf) -> Result<(), std::io::Error> {
+async fn ensure_progress_db_exists(path: &PathBuf) -> Result<(), ApiError> {
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).await?;
+        fs::create_dir_all(parent).await.map_err(ApiError::internal)?;
     }
 
-    if fs::try_exists(path).await? {
-        return Ok(());
-    }
-
-    fs::write(path, "{}").await
+    let db_path = path.clone();
+    tokio::task::spawn_blocking(move || -> Result<(), ApiError> {
+        let connection = Connection::open(db_path).map_err(ApiError::internal)?;
+        connection
+            .execute_batch(
+                "
+                CREATE TABLE IF NOT EXISTS lesson_progress (
+                    learner_id TEXT NOT NULL,
+                    lesson_slug TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY (learner_id, lesson_slug)
+                );
+                ",
+            )
+            .map_err(ApiError::internal)?;
+        Ok(())
+    })
+    .await
+    .map_err(ApiError::internal)?
 }
 
-async fn read_progress_store(path: &PathBuf) -> Result<LearnerProgressStore, ApiError> {
-    let contents = fs::read_to_string(path).await.map_err(ApiError::internal)?;
+async fn read_progress_store(path: &PathBuf, learner_id: &str) -> Result<LessonProgressMap, ApiError> {
+    let db_path = path.clone();
+    let learner_id = learner_id.to_string();
 
-    serde_json::from_str(&contents).map_err(ApiError::internal)
+    tokio::task::spawn_blocking(move || -> Result<LessonProgressMap, ApiError> {
+        let connection = Connection::open(db_path).map_err(ApiError::internal)?;
+        let mut statement = connection
+            .prepare(
+                "
+                SELECT lesson_slug, status, updated_at
+                FROM lesson_progress
+                WHERE learner_id = ?1
+                ",
+            )
+            .map_err(ApiError::internal)?;
+
+        let rows = statement
+            .query_map([learner_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    LessonProgressEntry {
+                        status: row.get(1)?,
+                        updated_at: row.get(2)?,
+                    },
+                ))
+            })
+            .map_err(ApiError::internal)?;
+
+        let mut progress = LessonProgressMap::new();
+        for row in rows {
+            let (lesson_slug, entry) = row.map_err(ApiError::internal)?;
+            progress.insert(lesson_slug, entry);
+        }
+
+        Ok(progress)
+    })
+    .await
+    .map_err(ApiError::internal)?
 }
 
-async fn write_progress_store(
+async fn write_progress_entry(
     path: &PathBuf,
-    store: &LearnerProgressStore,
+    learner_id: &str,
+    lesson_slug: &str,
+    status: &str,
+    updated_at: &str,
 ) -> Result<(), ApiError> {
-    let body = serde_json::to_string_pretty(store).map_err(ApiError::internal)?;
-    fs::write(path, body).await.map_err(ApiError::internal)
+    let db_path = path.clone();
+    let learner_id = learner_id.to_string();
+    let lesson_slug = lesson_slug.to_string();
+    let status = status.to_string();
+    let updated_at = updated_at.to_string();
+
+    tokio::task::spawn_blocking(move || -> Result<(), ApiError> {
+        let connection = Connection::open(db_path).map_err(ApiError::internal)?;
+        connection
+            .execute(
+                "
+                INSERT INTO lesson_progress (learner_id, lesson_slug, status, updated_at)
+                VALUES (?1, ?2, ?3, ?4)
+                ON CONFLICT(learner_id, lesson_slug)
+                DO UPDATE SET
+                    status = excluded.status,
+                    updated_at = excluded.updated_at
+                ",
+                params![learner_id, lesson_slug, status, updated_at],
+            )
+            .map_err(ApiError::internal)?;
+        Ok(())
+    })
+    .await
+    .map_err(ApiError::internal)?
 }
 
 fn chrono_like_now() -> String {
