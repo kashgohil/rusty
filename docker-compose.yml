@@ -1,0 +1,37 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      API_PORT: "9092"
+    ports:
+      - "9092:9092"
+    volumes:
+      - api_data:/app/apps/api/data
+
+  runner:
+    build:
+      context: .
+      dockerfile: apps/runner/Dockerfile
+    environment:
+      RUNNER_PORT: "9091"
+    ports:
+      - "9091:9091"
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_URL: http://api:9092
+        VITE_RUNNER_URL: http://runner:9091
+        VITE_LSP_URL: http://api:9092
+    depends_on:
+      - api
+      - runner
+    ports:
+      - "9090:3000"
+
+volumes:
+  api_data:

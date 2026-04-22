@@ -1,0 +1,12 @@
+node_modules
+.git
+.DS_Store
+.cache
+.output
+.nitro
+.tanstack
+dist
+coverage
+target
+apps/api/data/lsp-workspaces
+apps/api/data/*.sqlite

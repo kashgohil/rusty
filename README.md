@@ -56,6 +56,46 @@ This project should behave like a guided Rust bootcamp rather than a generic cod
 5. LSP support via `rust-analyzer`
 6. Sharing, accounts, cohorts, and collaboration features
 
-## Current State
+## Local Development
 
-This repository currently contains the planning and scaffolding needed to start implementation deliberately instead of improvising the architecture later.
+Install dependencies once:
+
+```bash
+bun install
+```
+
+Run the full local stack:
+
+```bash
+bun run dev:full
+```
+
+That starts:
+
+- `apps/web` on `http://127.0.0.1:9090`
+- `apps/api` on `http://127.0.0.1:9092`
+- `apps/runner` on `http://127.0.0.1:9091`
+
+Build the services directly:
+
+```bash
+bun run build:web
+bun run build:api
+bun run build:runner
+```
+
+## Docker Compose
+
+Bring up the stack with containers:
+
+```bash
+docker compose up --build
+```
+
+That publishes:
+
+- `web` on `http://127.0.0.1:9090`
+- `api` on `http://127.0.0.1:9092`
+- `runner` on `http://127.0.0.1:9091`
+
+The compose setup persists API progress data in a named Docker volume.
