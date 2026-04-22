@@ -8,13 +8,15 @@
   ],
   "scripts": {
     "dev": "bun --cwd apps/web dev",
-    "dev:full": "bun --cwd apps/api dev & bun --cwd apps/web dev & wait",
+    "dev:full": "bun --cwd apps/api dev & bun --cwd apps/runner dev & bun --cwd apps/web dev & wait",
     "dev:web": "bun --cwd apps/web dev",
     "build:web": "bun --cwd apps/web build",
     "preview:web": "bun --cwd apps/web preview",
     "typecheck:web": "bun --cwd apps/web typecheck",
     "dev:api": "bun --cwd apps/api dev",
     "dev:runner": "bun --cwd apps/runner dev",
+    "build:api": "bun --cwd apps/api build",
+    "build:runner": "bun --cwd apps/runner build",
     "check": "bun run typecheck:web && bun run build:web"
   }
 }
