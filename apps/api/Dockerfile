@@ -7,7 +7,8 @@ COPY apps/api/Cargo.toml apps/api/Cargo.lock apps/api/
 RUN mkdir -p apps/api/src && printf "fn main() {}\n" > apps/api/src/main.rs
 RUN cargo build --release --manifest-path apps/api/Cargo.toml
 
-COPY apps/api apps/api
+COPY apps/api/src apps/api/src
+RUN touch apps/api/src/main.rs
 
 RUN cargo build --release --manifest-path apps/api/Cargo.toml
 
