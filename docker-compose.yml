@@ -4,20 +4,34 @@ services:
       context: .
       dockerfile: apps/api/Dockerfile
     environment:
+      API_HOST: "0.0.0.0"
       API_PORT: "9092"
     ports:
       - "9092:9092"
     volumes:
       - api_data:/app/apps/api/data
+    healthcheck:
+      test: ["CMD-SHELL", "bash -lc ': > /dev/tcp/127.0.0.1/9092'"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
 
   runner:
     build:
       context: .
       dockerfile: apps/runner/Dockerfile
     environment:
+      RUNNER_HOST: "0.0.0.0"
       RUNNER_PORT: "9091"
     ports:
       - "9091:9091"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -lc ': > /dev/tcp/127.0.0.1/9091'"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
 
   web:
     build:
@@ -28,10 +42,24 @@ services:
         VITE_RUNNER_URL: http://runner:9091
         VITE_LSP_URL: http://api:9092
     depends_on:
-      - api
-      - runner
+      api:
+        condition: service_healthy
+      runner:
+        condition: service_healthy
     ports:
       - "9090:3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "bun",
+          "-e",
+          "fetch('http://127.0.0.1:3000').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
 volumes:
   api_data:
