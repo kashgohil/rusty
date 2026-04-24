@@ -18,6 +18,7 @@ use tokio::{
 use tower_http::cors::CorsLayer;
 
 const DEFAULT_PORT: u16 = 9091;
+const DEFAULT_HOST: &str = "0.0.0.0";
 const EXECUTION_TIMEOUT_SECS: u64 = 6;
 
 #[derive(Clone)]
@@ -107,6 +108,7 @@ struct HealthResponse {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let host = std::env::var("RUNNER_HOST").unwrap_or_else(|_| DEFAULT_HOST.to_string());
     let port = std::env::var("RUNNER_PORT")
         .ok()
         .and_then(|value| value.parse::<u16>().ok())
@@ -122,7 +124,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .layer(CorsLayer::permissive())
         .with_state(state);
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    let addr: SocketAddr = format!("{host}:{port}").parse()?;
     let listener = TcpListener::bind(addr).await?;
 
     println!("rust-learning runner listening on http://{addr}");

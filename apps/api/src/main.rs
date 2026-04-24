@@ -30,6 +30,7 @@ use tokio::{
 use tower_http::cors::CorsLayer;
 
 const DEFAULT_PORT: u16 = 9092;
+const DEFAULT_HOST: &str = "0.0.0.0";
 const DEFAULT_RUST_ANALYZER_BIN: &str = "rust-analyzer";
 
 #[derive(Clone)]
@@ -108,6 +109,7 @@ struct LspSessionQuery {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let host = std::env::var("API_HOST").unwrap_or_else(|_| DEFAULT_HOST.to_string());
     let port = std::env::var("API_PORT")
         .ok()
         .and_then(|value| value.parse::<u16>().ok())
@@ -141,7 +143,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .layer(CorsLayer::permissive())
         .with_state(state);
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    let addr: SocketAddr = format!("{host}:{port}").parse()?;
     let listener = TcpListener::bind(addr).await?;
 
     println!("rust-learning api listening on http://{addr}");
