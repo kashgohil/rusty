@@ -1,12 +1,5 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { Alert, AlertDescription, AlertTitle } from '~/components/ui/alert'
-import { Badge } from '~/components/ui/badge'
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '~/components/ui/card'
 import { useLearnerIdentity } from '~/utils/useLearnerIdentity'
 import { useLessonProgress } from '~/utils/useLessonProgress'
 import { useLessons } from '~/utils/useLessons'
@@ -20,6 +13,12 @@ function LessonsIndexPage() {
   const { progress } = useLessonProgress(learnerId)
   const { lessons, isLoading, error } = useLessons()
   const stageOrder = Array.from(new Set(lessons.map((lesson) => lesson.stage)))
+  const completedLessons = lessons.filter(
+    (lesson) => progress[lesson.slug]?.status === 'completed',
+  ).length
+  const startedLessons = lessons.filter(
+    (lesson) => progress[lesson.slug]?.status && progress[lesson.slug]?.status !== 'not_started',
+  ).length
 
   if (isLoading) {
     return (
@@ -65,60 +64,78 @@ function LessonsIndexPage() {
   }
 
   return (
-    <div className="space-y-10">
+    <div className="curriculum-map">
+      <div className="curriculum-overview" aria-label="Curriculum progress summary">
+        <div>
+          <span>{String(lessons.length).padStart(2, '0')}</span>
+          <p>Total lessons</p>
+        </div>
+        <div>
+          <span>{String(stageOrder.length).padStart(2, '0')}</span>
+          <p>Bootcamp stages</p>
+        </div>
+        <div>
+          <span>{String(startedLessons).padStart(2, '0')}</span>
+          <p>Started</p>
+        </div>
+        <div>
+          <span>{String(completedLessons).padStart(2, '0')}</span>
+          <p>Completed</p>
+        </div>
+      </div>
+
       {stageOrder.map((stage) => {
         const stageLessons = lessons.filter((lesson) => lesson.stage === stage)
         const completedCount = stageLessons.filter(
           (lesson) => progress[lesson.slug]?.status === 'completed',
         ).length
+        const stageIndex = stageOrder.indexOf(stage) + 1
 
         return (
-          <Card className="stage-panel" key={stage}>
-            <div className="stage-header">
-              <p className="eyebrow">{stage}</p>
-              <Badge
-                className="rounded-full border-[rgb(124_226_208_/_0.24)] bg-[rgb(124_226_208_/_0.08)] px-3 py-1 text-[0.72rem] tracking-[0.16em] text-[rgb(243_239_230_/_0.76)] uppercase"
-                variant="outline"
-              >
+          <section className="curriculum-stage" key={stage}>
+            <aside className="curriculum-stage-rail">
+              <span>{String(stageIndex).padStart(2, '0')}</span>
+              <h2>{stage}</h2>
+              <p>
                 {String(completedCount).padStart(2, '0')}/
                 {String(stageLessons.length).padStart(2, '0')} complete
-              </Badge>
-            </div>
-            <div className="lesson-grid">
+              </p>
+            </aside>
+
+            <div className="curriculum-lessons">
               {stageLessons.map((lesson) => (
                 <Link
-                  className="block"
+                  className="curriculum-lesson"
                   key={lesson.slug}
                   params={{ lessonSlug: lesson.slug }}
                   search={learnerSearch}
                   to="/lessons/$lessonSlug"
                 >
-                  <Card className="lesson-card">
-                    <CardHeader className="px-5 pb-0">
-                      <div className="lesson-card-top">
-                        <span>{lesson.order.toString().padStart(2, '0')}</span>
-                        <Badge
-                          className="rounded-full border-[rgb(243_239_230_/_0.14)] bg-[rgb(255_255_255_/_0.03)] px-3 py-1 text-[0.68rem] tracking-[0.14em] text-[rgb(243_239_230_/_0.72)] uppercase"
-                          variant="outline"
-                        >
-                          {progressLabel(progress[lesson.slug]?.status, lesson.duration)}
-                        </Badge>
-                      </div>
-                      <CardTitle>{lesson.title}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="px-5 pt-0">
-                      <p>{lesson.summary}</p>
-                      <ul>
-                        {lesson.objectives.slice(0, 3).map((objective) => (
-                          <li key={objective}>{objective}</li>
-                        ))}
-                      </ul>
-                    </CardContent>
-                  </Card>
+                  <span className="curriculum-lesson-number">
+                    {lesson.order.toString().padStart(2, '0')}
+                  </span>
+                  <div className="curriculum-lesson-main">
+                    <div className="curriculum-lesson-heading">
+                      <h3>{lesson.title}</h3>
+                      <span className={statusClass(progress[lesson.slug]?.status)}>
+                        {progressLabel(progress[lesson.slug]?.status, lesson.duration)}
+                      </span>
+                    </div>
+                    <p>{lesson.summary}</p>
+                    <ul>
+                      {lesson.objectives.slice(0, 2).map((objective) => (
+                        <li key={objective}>{objective}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="curriculum-lesson-meta">
+                    <span>{lesson.difficulty}</span>
+                    <span>{lesson.exercise.entryFile}</span>
+                  </div>
                 </Link>
               ))}
             </div>
-          </Card>
+          </section>
         )
       })}
     </div>
@@ -138,4 +155,18 @@ function progressLabel(
   }
 
   return fallback
+}
+
+function statusClass(
+  status: 'not_started' | 'in_progress' | 'completed' | undefined,
+) {
+  if (status === 'completed') {
+    return 'lesson-status lesson-status-completed'
+  }
+
+  if (status === 'in_progress') {
+    return 'lesson-status lesson-status-active'
+  }
+
+  return 'lesson-status'
 }
