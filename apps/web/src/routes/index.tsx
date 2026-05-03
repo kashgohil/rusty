@@ -84,24 +84,25 @@ function HomePage() {
           </div>
         </Card>
         <aside className="hero-stats">
-          <Card>
-            <CardContent className="px-5 py-5">
+          <div className="stat-card">
             <span>{String(totalLessons).padStart(2, '0')}</span>
             <p>lessons scoped for the first learning track</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="px-5 py-5">
+          </div>
+          <div className="stat-card">
             <span>{String(totalStages).padStart(2, '0')}</span>
             <p>curriculum stages from basics to practical projects</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="px-5 py-5">
+          </div>
+          <div className="stat-card">
             <span>{String(completedLessons).padStart(2, '0')}</span>
             <p>{startedLessons} started, {completedLessons} completed through the API</p>
-            </CardContent>
-          </Card>
+          </div>
+          <div className="sidebar-callout">
+            <p className="eyebrow">Current focus</p>
+            <strong>Build the first complete learning loop.</strong>
+            <p>
+              Open a lesson, edit Rust in-browser, run it, check it, and persist progress.
+            </p>
+          </div>
         </aside>
       </section>
 

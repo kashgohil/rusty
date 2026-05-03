@@ -145,21 +145,66 @@
 
   .hero-stats {
     display: grid;
-    gap: 1rem;
-    padding: 1.4rem;
+    align-self: stretch;
+    grid-template-rows: auto auto auto 1fr;
+    gap: 0;
+    padding: 0.9rem 1rem;
   }
 
-  .hero-stats div {
-    border-radius: 1.4rem;
-    background: rgb(255 255 255 / 0.03);
-    padding: 1.25rem;
+  .stat-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 1.1rem;
+    border-bottom: 1px solid rgb(162 143 108 / 0.14);
+    border-radius: 0;
+    background: transparent;
+    padding: 1rem 0.15rem;
+  }
+
+  .stat-card:last-child {
+    border-bottom: 0;
   }
 
   .hero-stats span {
     display: block;
     font-family: var(--font-display);
-    font-size: 2.3rem;
+    font-size: clamp(2.75rem, 4.2vw, 3.45rem);
+    line-height: 0.9;
     color: var(--ink-0);
+  }
+
+  .hero-stats p {
+    margin: 0;
+    font-size: 1.05rem;
+    line-height: 1.32;
+  }
+
+  .sidebar-callout {
+    align-self: end;
+    display: grid;
+    gap: 0.65rem;
+    margin-top: 1rem;
+    border: 1px solid rgb(124 226 208 / 0.2);
+    border-radius: 1.25rem;
+    background: rgb(124 226 208 / 0.07);
+    padding: 1.15rem;
+  }
+
+  .sidebar-callout strong {
+    display: block;
+    max-width: 12rem;
+    color: var(--ink-0);
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+
+  .sidebar-callout p:last-child {
+    color: rgb(243 239 230 / 0.7);
+    font-size: 0.95rem;
+    line-height: 1.45;
   }
 
   .hero-stats p,
