@@ -1,4 +1,5 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
+import { Check, Copy } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '~/components/ui/button'
 import {
@@ -53,9 +54,24 @@ function HomePage() {
             tooling. The next step is wiring Monaco, the runner service, and remote
             LSP support into the lesson experience.
           </p>
-          {learnerId ? (
-            <p className="workbench-note mt-6">learner {learnerId}</p>
-          ) : null}
+          <div className="learner-toolbar mt-6">
+            {learnerId ? (
+              <p className="learner-chip">
+                <span>Learner</span>
+                <strong>{learnerId}</strong>
+              </p>
+            ) : null}
+            <Button
+              aria-label={copied ? 'Learner link copied' : 'Copy learner link'}
+              className="copy-link-button"
+              onClick={() => void copyLearnerLink()}
+              title={copied ? 'Copied learner link' : 'Copy learner link'}
+              type="button"
+              variant="outline"
+            >
+              {copied ? <Check /> : <Copy />}
+            </Button>
+          </div>
           <div className="hero-actions">
             <Button asChild className="primary-pill rounded-full px-5 py-4" size="lg">
               <Link search={learnerSearch} to="/lessons">
@@ -71,15 +87,6 @@ function HomePage() {
               <Link search={learnerSearch} to="/docs/architecture">
                 Review architecture
               </Link>
-            </Button>
-            <Button
-              className="ghost-pill rounded-full border px-5 py-4"
-              onClick={() => void copyLearnerLink()}
-              size="lg"
-              type="button"
-              variant="outline"
-            >
-              {copied ? 'Copied learner link' : 'Copy learner link'}
             </Button>
           </div>
         </Card>

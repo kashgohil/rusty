@@ -111,6 +111,61 @@
     margin-top: 2rem;
   }
 
+  .learner-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.65rem;
+  }
+
+  .learner-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+    margin: 0;
+    border: 1px solid rgb(162 143 108 / 0.18);
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.025);
+    color: rgb(243 239 230 / 0.76);
+    padding: 0.45rem 0.8rem;
+  }
+
+  .learner-chip span {
+    font-size: 0.72rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .learner-chip strong {
+    color: var(--ink-0);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+  }
+
+  .copy-link-button {
+    width: 2.35rem;
+    height: 2.35rem;
+    min-height: 0;
+    border: 1px solid rgb(124 226 208 / 0.22);
+    border-radius: 999px;
+    background: rgb(124 226 208 / 0.07);
+    color: rgb(166 244 232);
+    padding: 0;
+  }
+
+  .copy-link-button svg {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  .copy-link-button:hover {
+    border-color: rgb(124 226 208 / 0.38);
+    background: rgb(124 226 208 / 0.11);
+    color: rgb(220 255 250);
+  }
+
   .primary-pill,
   .ghost-pill {
     border-radius: 999px;
@@ -277,6 +332,18 @@
 
   .section-heading {
     max-width: 50rem;
+  }
+
+  .curriculum-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 2rem;
+  }
+
+  .curriculum-learner-toolbar {
+    justify-content: end;
+    padding-top: 0.25rem;
   }
 
   .section-heading h1 {

@@ -1,4 +1,5 @@
 import { Outlet, createFileRoute, useRouterState } from '@tanstack/react-router'
+import { Check, Copy } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '~/components/ui/button'
 import { buildLearnerUrl, validateLearnerSearch } from '~/utils/learner'
@@ -36,23 +37,30 @@ function LessonsLayout() {
       }
     >
       {isCurriculumIndex ? (
-        <section className="section-heading">
-          <p className="eyebrow">Curriculum</p>
-          <h1>Rust track, structured as a bootcamp instead of a loose reading list.</h1>
-          <p>
-            The content package drives these pages, which keeps the learning system
-            editable without rebuilding route logic every time a lesson changes.
-          </p>
-          <div className="hero-actions mt-6">
-            {learnerId ? <p className="workbench-note">learner {learnerId}</p> : null}
+        <section className="curriculum-hero">
+          <div className="section-heading">
+            <p className="eyebrow">Curriculum</p>
+            <h1>Roadmap.</h1>
+            <p>
+              A structured track of lessons, exercises, checks, and progress state.
+            </p>
+          </div>
+          <div className="learner-toolbar curriculum-learner-toolbar">
+            {learnerId ? (
+              <p className="learner-chip">
+                <span>Learner</span>
+                <strong>{learnerId}</strong>
+              </p>
+            ) : null}
             <Button
-              className="ghost-pill rounded-full border px-5 py-4"
+              aria-label={copied ? 'Learner link copied' : 'Copy learner link'}
+              className="copy-link-button"
               onClick={() => void copyLearnerLink()}
-              size="lg"
+              title={copied ? 'Copied learner link' : 'Copy learner link'}
               type="button"
               variant="outline"
             >
-              {copied ? 'Copied learner link' : 'Copy learner link'}
+              {copied ? <Check /> : <Copy />}
             </Button>
           </div>
         </section>
