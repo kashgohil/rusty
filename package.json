@@ -17,6 +17,7 @@
     "dev:runner": "bun --cwd apps/runner dev",
     "build:api": "bun --cwd apps/api build",
     "build:runner": "bun --cwd apps/runner build",
+    "smoke:learning-loop": "node scripts/smoke_learning_loop.mjs",
     "check": "bun run typecheck:web && bun run build:web"
   }
 }
