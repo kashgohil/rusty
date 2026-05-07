@@ -23,6 +23,12 @@
       "prompt": "Print your name and one reason you want to learn Rust.",
       "hint": "Change the string value and add a second println! line.",
       "success": "The program compiles and prints two custom lines of output.",
+      "solutionFiles": [
+        {
+          "path": "src/main.rs",
+          "content": "fn main() {\n    let learner = \"Kash\";\n    println!(\"Hello, {learner}!\");\n    println!(\"Reason: I want to build reliable systems with Rust.\");\n}\n"
+        }
+      ],
       "validation": {
         "kind": "heuristic",
         "checks": [
@@ -64,6 +70,12 @@
       "prompt": "Fix the moved-value error without removing the second print statement.",
       "hint": "Either borrow or clone. Pick the reasoned tradeoff, not a random fix.",
       "success": "The learner can explain why the chosen fix works.",
+      "solutionFiles": [
+        {
+          "path": "src/main.rs",
+          "content": "fn main() {\n    let message = String::from(\"ownership matters\");\n    let moved = &message;\n\n    println!(\"{moved}\");\n    println!(\"{message}\");\n}\n"
+        }
+      ],
       "validation": {
         "kind": "heuristic",
         "checks": [
@@ -105,6 +117,12 @@
       "prompt": "Update the helper function so it can inspect a String without taking ownership.",
       "hint": "The function does not need ownership. Its parameter type should say that.",
       "success": "The helper compiles and the original String remains usable afterward.",
+      "solutionFiles": [
+        {
+          "path": "src/main.rs",
+          "content": "fn print_length(text: &str) {\n    println!(\"Length: {}\", text.len());\n}\n\nfn main() {\n    let note = String::from(\"borrow me\");\n    print_length(&note);\n    println!(\"{note}\");\n}\n"
+        }
+      ],
       "validation": {
         "kind": "heuristic",
         "checks": [

@@ -691,6 +691,34 @@
     letter-spacing: -0.02em;
   }
 
+  .solution-reveal {
+    border-color: rgb(239 107 71 / 0.36);
+    background: rgb(239 107 71 / 0.055);
+  }
+
+  .solution-files {
+    display: grid;
+    gap: 0.65rem;
+    margin-top: 0.75rem;
+  }
+
+  .solution-file {
+    display: grid;
+    gap: 0.45rem;
+  }
+
+  .solution-file pre {
+    overflow-x: auto;
+    margin: 0;
+    border: 1px solid rgb(162 143 108 / 0.14);
+    background: rgb(7 11 12 / 0.72);
+    color: rgb(223 233 220);
+    padding: 0.8rem;
+    font-size: 0.78rem;
+    line-height: 1.55;
+    white-space: pre;
+  }
+
   .next-lesson-link {
     display: grid;
     gap: 0.35rem;

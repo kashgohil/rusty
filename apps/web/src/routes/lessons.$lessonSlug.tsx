@@ -141,6 +141,20 @@ function LessonDetailPage() {
               <summary>Show hint</summary>
               <p>{lesson.exercise.hint}</p>
             </details>
+            {lesson.exercise.solutionFiles ? (
+              <details className="solution-reveal">
+                <summary>Reveal solution</summary>
+                <p>Use this as a reference after you have tried the prompt.</p>
+                <div className="solution-files">
+                  {lesson.exercise.solutionFiles.map((file) => (
+                    <section className="solution-file" key={file.path}>
+                      <span>{file.path}</span>
+                      <pre>{file.content}</pre>
+                    </section>
+                  ))}
+                </div>
+              </details>
+            ) : null}
             {nextLesson ? (
               <Link
                 className="next-lesson-link"

@@ -32,6 +32,7 @@ export interface LessonExercise {
   prompt: string
   hint: string
   success: string
+  solutionFiles?: LessonFile[]
   sampleOutput?: string
   validation: LessonValidation
 }
