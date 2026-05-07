@@ -650,6 +650,72 @@
     letter-spacing: -0.02em;
   }
 
+  .lesson-mission-strip {
+    display: grid;
+    gap: 0.8rem;
+    margin-top: 1rem;
+    border-block: 1px solid rgb(124 226 208 / 0.18);
+    padding-block: 1rem;
+  }
+
+  .lesson-mission-strip div,
+  .lesson-mission-strip details,
+  .next-lesson-link {
+    border-left: 2px solid rgb(124 226 208 / 0.32);
+    background: rgb(124 226 208 / 0.045);
+    padding: 0.85rem 0.95rem;
+  }
+
+  .lesson-mission-strip span,
+  .next-lesson-link span {
+    display: block;
+    color: rgb(124 226 208 / 0.78);
+    font-size: 0.68rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .lesson-mission-strip p {
+    margin: 0.4rem 0 0;
+    color: rgb(243 239 230 / 0.74);
+    font-size: 0.88rem;
+    line-height: 1.6;
+  }
+
+  .lesson-mission-strip summary {
+    cursor: pointer;
+    color: var(--ink-0);
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  .next-lesson-link {
+    display: grid;
+    gap: 0.35rem;
+    border-color: rgb(241 166 59 / 0.42);
+    background: rgb(241 166 59 / 0.09);
+    transition: background 180ms ease, padding-left 180ms ease;
+  }
+
+  .next-lesson-link:hover {
+    background: rgb(241 166 59 / 0.14);
+    padding-left: 1.1rem;
+  }
+
+  .next-lesson-link strong {
+    color: var(--ink-0);
+    font-family: var(--font-display);
+    font-size: 1.08rem;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+  }
+
+  .next-lesson-link.is-finished {
+    pointer-events: none;
+  }
+
   .workbench-panel {
     padding: 0;
     overflow: hidden;

@@ -1,4 +1,4 @@
-import { createFileRoute, notFound } from '@tanstack/react-router'
+import { Link, createFileRoute, notFound } from '@tanstack/react-router'
 import { useEffect, useRef, useState } from 'react'
 import { LessonWorkbench } from '~/components/LessonWorkbench'
 import { Alert, AlertDescription, AlertTitle } from '~/components/ui/alert'
@@ -7,7 +7,7 @@ import { Card, CardContent } from '~/components/ui/card'
 import { Separator } from '~/components/ui/separator'
 import { validateLearnerSearch } from '~/utils/learner'
 import { useLearnerIdentity } from '~/utils/useLearnerIdentity'
-import { useLesson } from '~/utils/useLessons'
+import { useLesson, useLessons } from '~/utils/useLessons'
 
 export const Route = createFileRoute('/lessons/$lessonSlug')({
   validateSearch: validateLearnerSearch,
@@ -16,8 +16,9 @@ export const Route = createFileRoute('/lessons/$lessonSlug')({
 
 function LessonDetailPage() {
   const { lessonSlug } = Route.useParams()
-  const { learnerId } = useLearnerIdentity()
+  const { learnerId, learnerSearch } = useLearnerIdentity()
   const { lesson, isLoading, error } = useLesson(lessonSlug)
+  const { lessons } = useLessons()
   const shellRef = useRef<HTMLElement | null>(null)
   const [sidebarWidth, setSidebarWidth] = useState(31)
 
@@ -92,6 +93,8 @@ function LessonDetailPage() {
     throw notFound()
   }
 
+  const nextLesson = lessons.find((candidate) => candidate.order === lesson.order + 1)
+
   return (
     <section
       className="lesson-detail-shell"
@@ -128,6 +131,32 @@ function LessonDetailPage() {
           <div className="objective-block">
             <h2>Practice prompt</h2>
             <p>{lesson.exercise.prompt}</p>
+          </div>
+          <div className="lesson-mission-strip" aria-label="Lesson guidance">
+            <div>
+              <span>Pass condition</span>
+              <p>{lesson.exercise.success}</p>
+            </div>
+            <details>
+              <summary>Show hint</summary>
+              <p>{lesson.exercise.hint}</p>
+            </details>
+            {nextLesson ? (
+              <Link
+                className="next-lesson-link"
+                params={{ lessonSlug: nextLesson.slug }}
+                search={learnerSearch}
+                to="/lessons/$lessonSlug"
+              >
+                <span>Next lesson</span>
+                <strong>{nextLesson.title}</strong>
+              </Link>
+            ) : (
+              <div className="next-lesson-link is-finished">
+                <span>Final lesson</span>
+                <strong>Finish the track</strong>
+              </div>
+            )}
           </div>
           <div className="objective-block">
             <h2>Workspace shape</h2>
