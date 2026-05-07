@@ -1228,6 +1228,17 @@
     border-color: transparent;
   }
 
+  .icon-action-solution {
+    border-color: rgb(239 107 71 / 0.34);
+    background: rgb(239 107 71 / 0.12);
+    color: rgb(255 179 156);
+  }
+
+  .icon-action-solution:hover {
+    border-color: rgb(239 107 71 / 0.46);
+    background: rgb(239 107 71 / 0.18);
+  }
+
   .icon-action:disabled {
     cursor: not-allowed;
     opacity: 0.48;

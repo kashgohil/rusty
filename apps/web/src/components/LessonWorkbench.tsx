@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   Check,
   CircleAlert,
+  ClipboardCheck,
   FileCode2,
   Info,
   Play,
@@ -259,6 +260,37 @@ export function LessonWorkbench({
       status: 'idle',
       headline: 'Starter restored',
       output: 'Every visible file has been reset to the original lesson workspace.',
+    })
+  }
+
+  function handleApplySolution() {
+    if (!lesson.exercise.solutionFiles?.length) {
+      return
+    }
+
+    const solutionByPath = new Map(
+      lesson.exercise.solutionFiles.map((file) => [file.path, file]),
+    )
+
+    setFiles((current) => {
+      const replaced = current.map((file) => {
+        const solutionFile = solutionByPath.get(file.path)
+        return solutionFile ? { ...file, content: solutionFile.content } : file
+      })
+      const currentPaths = new Set(current.map((file) => file.path))
+      const additions = lesson.exercise.solutionFiles!.filter(
+        (file) => !currentPaths.has(file.path),
+      )
+
+      return [...replaced, ...additions]
+    })
+    setActivePath(lesson.exercise.solutionFiles[0]?.path ?? lesson.exercise.entryFile)
+    setActionMessage('Solution applied to workspace')
+    setResult({
+      status: 'idle',
+      headline: 'Solution applied',
+      output:
+        'The reference solution has been copied into the editable workspace. Run or check it to inspect the behavior.',
     })
   }
 
@@ -590,6 +622,17 @@ export function LessonWorkbench({
             >
               <Check />
             </IconAction>
+            {lesson.exercise.solutionFiles ? (
+              <IconAction
+                ariaLabel="Apply solution"
+                className="icon-action icon-action-solution"
+                disabled={activeAction !== null}
+                onClick={handleApplySolution}
+                tooltip="Apply solution"
+              >
+                <ClipboardCheck />
+              </IconAction>
+            ) : null}
             <IconAction
               ariaLabel="Reset workspace"
               className="icon-action"
