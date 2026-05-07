@@ -168,6 +168,16 @@
       "prompt": "Add a method on Lesson that returns a formatted summary, then print it from main.",
       "hint": "The logic belongs on the type. Implement it in lib.rs, then call it from main.rs.",
       "success": "The learner can call a method on Lesson and print a useful summary.",
+      "solutionFiles": [
+        {
+          "path": "src/lib.rs",
+          "content": "pub struct Lesson {\n    pub title: String,\n    pub minutes: u32,\n}\n\nimpl Lesson {\n    pub fn summary(&self) -> String {\n        format!(\"{} takes {} minutes\", self.title, self.minutes)\n    }\n}\n"
+        },
+        {
+          "path": "src/main.rs",
+          "content": "use structs_and_methods::Lesson;\n\nfn main() {\n    let lesson = Lesson {\n        title: String::from(\"Structs\"),\n        minutes: 45,\n    };\n\n    println!(\"{}\", lesson.summary());\n}\n"
+        }
+      ],
       "validation": {
         "kind": "cargo_test",
         "testFiles": [
@@ -204,6 +214,12 @@
       "prompt": "Return a Result from parse_age and handle bad input in main.",
       "hint": "Replace unwrap-driven control flow with an explicit Result path.",
       "success": "Bad input no longer crashes the program and the outcome is explained clearly.",
+      "solutionFiles": [
+        {
+          "path": "src/main.rs",
+          "content": "fn parse_age(input: &str) -> Result<u8, std::num::ParseIntError> {\n    input.parse()\n}\n\nfn main() {\n    match parse_age(\"twelve\") {\n        Ok(age) => println!(\"Age: {age}\"),\n        Err(error) => println!(\"Could not parse age: {error}\"),\n    }\n}\n"
+        }
+      ],
       "validation": {
         "kind": "heuristic",
         "checks": [
@@ -245,6 +261,12 @@
       "prompt": "Extend the starter to read a file path argument and print the line count.",
       "hint": "Break the job into steps: args, read file, count lines, print result.",
       "success": "A learner can point the program at a text file and get a useful count back.",
+      "solutionFiles": [
+        {
+          "path": "src/main.rs",
+          "content": "use std::env;\nuse std::fs;\n\nfn main() {\n    let Some(path) = env::args().nth(1) else {\n        eprintln!(\"Usage: line_count <path>\");\n        return;\n    };\n\n    match fs::read_to_string(&path) {\n        Ok(contents) => {\n            let line_count = contents.lines().count();\n            println!(\"{path}: {line_count} lines\");\n        }\n        Err(error) => eprintln!(\"Could not read {path}: {error}\"),\n    }\n}\n"
+        }
+      ],
       "validation": {
         "kind": "heuristic",
         "checks": [
