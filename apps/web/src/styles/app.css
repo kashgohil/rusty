@@ -987,6 +987,60 @@
     color: rgb(255 179 156);
   }
 
+  .check-feedback-panel {
+    display: grid;
+    grid-template-columns: minmax(12rem, 0.9fr) minmax(0, 1.1fr);
+    gap: 1rem;
+    margin: 1rem 1.2rem 0;
+    border: 1px solid rgb(239 107 71 / 0.24);
+    border-left: 3px solid rgb(239 107 71 / 0.72);
+    background: rgb(239 107 71 / 0.07);
+    padding: 1rem;
+  }
+
+  .check-feedback-panel span {
+    display: block;
+    color: rgb(255 179 156);
+    font-size: 0.7rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .check-feedback-panel p {
+    margin: 0.45rem 0 0;
+    color: rgb(243 239 230 / 0.68);
+    font-size: 0.84rem;
+    line-height: 1.65;
+  }
+
+  .check-feedback-panel ul {
+    display: grid;
+    gap: 0.55rem;
+    margin: 0;
+    padding-left: 1.05rem;
+    color: var(--ink-0);
+    font-size: 0.88rem;
+    line-height: 1.5;
+  }
+
+  .check-summary-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    padding: 0.8rem 1.2rem 0;
+  }
+
+  .check-summary-row span {
+    border: 1px solid rgb(162 143 108 / 0.12);
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.025);
+    color: rgb(243 239 230 / 0.68);
+    padding: 0.35rem 0.65rem;
+    font-size: 0.68rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
   .output-console {
     overflow-x: auto;
     margin: 0;

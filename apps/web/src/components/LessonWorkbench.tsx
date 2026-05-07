@@ -112,6 +112,8 @@ export function LessonWorkbench({
     files.find((file) => file.path === lesson.exercise.entryFile) ??
     files[0]
   const visibleFiles = files.filter((file) => file.editable !== false)
+  const failedChecks = result.checks?.filter((check) => !check.passed) ?? []
+  const passedChecks = result.checks?.filter((check) => check.passed) ?? []
   const groupedDiagnostics = useMemo(() => {
     const groups = new Map<string, LessonDiagnostic[]>()
 
@@ -599,6 +601,28 @@ export function LessonWorkbench({
             </IconAction>
           </div>
         </div>
+        {failedChecks.length > 0 ? (
+          <div className="check-feedback-panel" aria-live="polite">
+            <div>
+              <span>What to fix next</span>
+              <p>
+                Start with these failed checks. If the direction is unclear, open the hint
+                first, then reveal the reference solution only after another attempt.
+              </p>
+            </div>
+            <ul>
+              {failedChecks.map((check) => (
+                <li key={check.message}>{check.message}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {result.checks && result.checks.length > 0 ? (
+          <div className="check-summary-row" aria-label="Lesson check summary">
+            <span>{passedChecks.length} passed</span>
+            <span>{failedChecks.length} failed</span>
+          </div>
+        ) : null}
         <pre className="output-console">{result.output}</pre>
       </div>
 
@@ -699,12 +723,24 @@ function basename(path: string) {
 }
 
 function formatCheckResult(payload: ExecutionResult): ExecutionResult {
+  const failedChecks = payload.checks?.filter((check) => !check.passed) ?? []
+  const passedChecks = payload.checks?.filter((check) => check.passed) ?? []
   const checkLines = renderChecks(payload.checks)
+  const guidance =
+    failedChecks.length > 0
+      ? [
+          `What to fix next: ${failedChecks[0].message}`,
+          'Use the lesson hint before revealing the solution.',
+        ].join('\n')
+      : passedChecks.length > 0
+        ? `All ${passedChecks.length} lesson checks passed.`
+        : ''
+  const output = [payload.output, guidance, checkLines].filter(Boolean).join('\n\n')
 
   return {
     ...payload,
     headline: payload.passed ? 'Lesson checks passed' : 'Lesson checks failed',
-    output: checkLines ? `${payload.output}\n\n${checkLines}` : payload.output,
+    output,
   }
 }
 
