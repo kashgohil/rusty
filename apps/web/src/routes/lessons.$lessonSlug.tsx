@@ -188,7 +188,13 @@ function LessonDetailPage() {
 
       <div aria-hidden="true" className="lesson-splitter" data-splitter />
 
-      <LessonWorkbench key={lesson.slug} learnerId={learnerId} lesson={lesson} />
+      <LessonWorkbench
+        key={lesson.slug}
+        learnerId={learnerId}
+        learnerSearch={learnerSearch}
+        lesson={lesson}
+        nextLesson={nextLesson}
+      />
     </section>
   )
 }

@@ -1,4 +1,5 @@
 import Editor from '@monaco-editor/react'
+import { Link } from '@tanstack/react-router'
 import {
   AlertCircle,
   AlertTriangle,
@@ -37,6 +38,7 @@ import {
   type LspStatus,
 } from '~/utils/lsp'
 import { RUNNER_URL } from '~/utils/env'
+import type { LearnerSearch } from '~/utils/learner'
 import { useLessonProgress } from '~/utils/useLessonProgress'
 
 function IconAction({
@@ -76,10 +78,14 @@ function IconAction({
 
 export function LessonWorkbench({
   learnerId,
+  learnerSearch,
   lesson,
+  nextLesson,
 }: {
   learnerId: string | null
+  learnerSearch?: LearnerSearch
   lesson: Lesson
+  nextLesson?: Lesson
 }) {
   const storageKey = useMemo(
     () => `rust-learning:lesson:${lesson.slug}:files`,
@@ -682,6 +688,30 @@ export function LessonWorkbench({
           <div className="check-summary-row" aria-label="Lesson check summary">
             <span>{passedChecks.length} passed</span>
             <span>{failedChecks.length} failed</span>
+          </div>
+        ) : null}
+        {result.passed ? (
+          <div className="completion-panel" aria-live="polite">
+            <div>
+              <span>{nextLesson ? 'Lesson complete' : 'Track complete'}</span>
+              <strong>{nextLesson ? 'Move to the next lesson.' : 'You finished this track.'}</strong>
+              <p>
+                {nextLesson
+                  ? 'Progress is saved. Continue while the concept is fresh.'
+                  : 'All scoped lessons are done. Review any workspace or reset one to practice again.'}
+              </p>
+            </div>
+            {nextLesson ? (
+              <Button asChild className="completion-link" type="button">
+                <Link
+                  params={{ lessonSlug: nextLesson.slug }}
+                  search={learnerSearch}
+                  to="/lessons/$lessonSlug"
+                >
+                  Next: {nextLesson.title}
+                </Link>
+              </Button>
+            ) : null}
           </div>
         ) : null}
         <pre className="output-console">{result.output}</pre>
