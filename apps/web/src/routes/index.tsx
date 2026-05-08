@@ -29,6 +29,10 @@ function HomePage() {
   const startedLessons = lessons.filter(
     (lesson) => progress[lesson.slug]?.status && progress[lesson.slug]?.status !== 'not_started',
   ).length
+  const continueLesson =
+    lessons.find((lesson) => progress[lesson.slug]?.status !== 'completed') ??
+    lessons.at(0)
+  const isTrackComplete = totalLessons > 0 && completedLessons === totalLessons
 
   async function copyLearnerLink() {
     if (!learnerId || typeof window === 'undefined') {
@@ -50,9 +54,8 @@ function HomePage() {
             documentation dump.
           </h1>
           <p className="hero-text">
-            This starter shell is organized around lessons, execution, and language
-            tooling. The next step is wiring Monaco, the runner service, and remote
-            LSP support into the lesson experience.
+            Work through sequenced lessons, edit Rust in-browser, run the workspace,
+            check your answer, and use hints or reference solutions when you get stuck.
           </p>
           <div className="learner-toolbar mt-6">
             {learnerId ? (
@@ -73,9 +76,25 @@ function HomePage() {
             </Button>
           </div>
           <div className="hero-actions">
-            <Button asChild className="primary-pill rounded-full px-5 py-4" size="lg">
+            {continueLesson ? (
+              <Button asChild className="primary-pill rounded-full px-5 py-4" size="lg">
+                <Link
+                  params={{ lessonSlug: continueLesson.slug }}
+                  search={learnerSearch}
+                  to="/lessons/$lessonSlug"
+                >
+                  {isTrackComplete ? 'Review track' : 'Continue lesson'}
+                </Link>
+              </Button>
+            ) : null}
+            <Button
+              asChild
+              className="ghost-pill rounded-full border px-5 py-4"
+              size="lg"
+              variant="outline"
+            >
               <Link search={learnerSearch} to="/lessons">
-                Open curriculum
+                Open roadmap
               </Link>
             </Button>
             <Button
@@ -104,10 +123,12 @@ function HomePage() {
             <p>{startedLessons} started, {completedLessons} completed through the API</p>
           </div>
           <div className="sidebar-callout">
-            <p className="eyebrow">Current focus</p>
-            <strong>Build the first complete learning loop.</strong>
+            <p className="eyebrow">{isTrackComplete ? 'Track complete' : 'Up next'}</p>
+            <strong>{continueLesson?.title ?? 'Load the roadmap'}</strong>
             <p>
-              Open a lesson, edit Rust in-browser, run it, check it, and persist progress.
+              {isTrackComplete
+                ? 'Every lesson is complete. Revisit the track or reset a workspace to practice again.'
+                : 'Resume from the first unfinished lesson and keep progress tied to this learner link.'}
             </p>
           </div>
         </aside>
@@ -129,13 +150,13 @@ function HomePage() {
         <Card className="ide-preview">
           <div className="ide-topbar">
             <span>lesson.rs</span>
-            <span>runner: pending</span>
+            <span>runner: ready</span>
           </div>
           <pre>{`fn main() {
-    let ownership = "coming soon";
-    println!("Bootcamp status: {ownership}");
+    let next_step = "run, check, then continue";
+    println!("Bootcamp status: {next_step}");
 }`}</pre>
-          <div className="ide-console">next: wire Monaco + sandboxed execution</div>
+          <div className="ide-console">next: {continueLesson?.title ?? 'open roadmap'}</div>
         </Card>
       </section>
     </main>
