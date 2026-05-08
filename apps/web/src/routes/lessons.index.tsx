@@ -19,6 +19,9 @@ function LessonsIndexPage() {
   const startedLessons = lessons.filter(
     (lesson) => progress[lesson.slug]?.status && progress[lesson.slug]?.status !== 'not_started',
   ).length
+  const nextLesson = lessons.find(
+    (lesson) => progress[lesson.slug]?.status !== 'completed',
+  )
 
   if (isLoading) {
     return (
@@ -103,37 +106,43 @@ function LessonsIndexPage() {
             </aside>
 
             <div className="curriculum-lessons">
-              {stageLessons.map((lesson) => (
-                <Link
-                  className="curriculum-lesson"
-                  key={lesson.slug}
-                  params={{ lessonSlug: lesson.slug }}
-                  search={learnerSearch}
-                  to="/lessons/$lessonSlug"
-                >
-                  <span className="curriculum-lesson-number">
-                    {lesson.order.toString().padStart(2, '0')}
-                  </span>
-                  <div className="curriculum-lesson-main">
-                    <div className="curriculum-lesson-heading">
-                      <h3>{lesson.title}</h3>
-                      <span className={statusClass(progress[lesson.slug]?.status)}>
-                        {progressLabel(progress[lesson.slug]?.status, lesson.duration)}
-                      </span>
+              {stageLessons.map((lesson) => {
+                const isNextLesson = lesson.slug === nextLesson?.slug
+
+                return (
+                  <Link
+                    className={`curriculum-lesson ${isNextLesson ? 'curriculum-lesson-next' : ''}`}
+                    key={lesson.slug}
+                    params={{ lessonSlug: lesson.slug }}
+                    search={learnerSearch}
+                    to="/lessons/$lessonSlug"
+                  >
+                    <span className="curriculum-lesson-number">
+                      {lesson.order.toString().padStart(2, '0')}
+                    </span>
+                    <div className="curriculum-lesson-main">
+                      <div className="curriculum-lesson-heading">
+                        <h3>{lesson.title}</h3>
+                        <span className={statusClass(progress[lesson.slug]?.status)}>
+                          {isNextLesson
+                            ? 'up next'
+                            : progressLabel(progress[lesson.slug]?.status, lesson.duration)}
+                        </span>
+                      </div>
+                      <p>{lesson.summary}</p>
+                      <ul>
+                        {lesson.objectives.slice(0, 2).map((objective) => (
+                          <li key={objective}>{objective}</li>
+                        ))}
+                      </ul>
                     </div>
-                    <p>{lesson.summary}</p>
-                    <ul>
-                      {lesson.objectives.slice(0, 2).map((objective) => (
-                        <li key={objective}>{objective}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div className="curriculum-lesson-meta">
-                    <span>{lesson.difficulty}</span>
-                    <span>{lesson.exercise.entryFile}</span>
-                  </div>
-                </Link>
-              ))}
+                    <div className="curriculum-lesson-meta">
+                      <span>{lesson.difficulty}</span>
+                      <span>{lesson.exercise.entryFile}</span>
+                    </div>
+                  </Link>
+                )
+              })}
             </div>
           </section>
         )
