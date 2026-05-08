@@ -85,7 +85,11 @@ export function LessonWorkbench({
     () => `rust-learning:lesson:${lesson.slug}:files`,
     [lesson.slug],
   )
-  const { progress, persistLessonProgress } = useLessonProgress(learnerId)
+  const {
+    isLoading: isProgressLoading,
+    progress,
+    persistLessonProgress,
+  } = useLessonProgress(learnerId)
   const [files, setFiles] = useState<LessonFile[]>(lesson.exercise.files)
   const [activePath, setActivePath] = useState(lesson.exercise.entryFile)
   const [isHydrated, setIsHydrated] = useState(false)
@@ -149,16 +153,28 @@ export function LessonWorkbench({
   }, [storageKey])
 
   useEffect(() => {
-    if (!isHydrated || typeof window === 'undefined') {
+    if (!isHydrated || isProgressLoading || typeof window === 'undefined') {
       return
     }
 
     window.localStorage.setItem(storageKey, JSON.stringify(files))
 
-    if (!areFilesEqual(files, lesson.exercise.files)) {
+    if (
+      !areFilesEqual(files, lesson.exercise.files) &&
+      progress[lesson.slug]?.status !== 'completed'
+    ) {
       void persistLessonProgress(lesson.slug, 'in_progress')
     }
-  }, [files, isHydrated, lesson.exercise.files, lesson.slug, storageKey, persistLessonProgress])
+  }, [
+    files,
+    isHydrated,
+    isProgressLoading,
+    lesson.exercise.files,
+    lesson.slug,
+    progress,
+    storageKey,
+    persistLessonProgress,
+  ])
 
   useEffect(() => {
     if (!actionMessage || typeof window === 'undefined') {
