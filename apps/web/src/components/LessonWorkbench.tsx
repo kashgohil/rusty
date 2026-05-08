@@ -256,10 +256,12 @@ export function LessonWorkbench({
     navigationHistoryRef.current = []
     setNavigationDepth(0)
     setActionMessage('Starter workspace restored')
+    void persistLessonProgress(lesson.slug, 'not_started')
     setResult({
       status: 'idle',
       headline: 'Starter restored',
-      output: 'Every visible file has been reset to the original lesson workspace.',
+      output:
+        'Every visible file has been reset to the original lesson workspace and progress for this lesson is back to not started.',
     })
   }
 
