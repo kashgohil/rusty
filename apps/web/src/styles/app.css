@@ -394,6 +394,29 @@
     text-transform: uppercase;
   }
 
+  .curriculum-resume-strip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.25rem;
+    border-block: 1px solid rgb(241 166 59 / 0.22);
+    background: rgb(241 166 59 / 0.055);
+    padding: 1.2rem 0;
+  }
+
+  .curriculum-resume-strip h2 {
+    margin-top: 0.35rem;
+    font-size: clamp(1.8rem, 3vw, 2.7rem);
+    line-height: 0.98;
+  }
+
+  .curriculum-resume-strip p:last-child {
+    margin-top: 0.55rem;
+    max-width: 42rem;
+    color: rgb(243 239 230 / 0.66);
+    line-height: 1.6;
+  }
+
   .curriculum-stage {
     display: grid;
     grid-template-columns: minmax(13rem, 0.34fr) minmax(0, 1fr);

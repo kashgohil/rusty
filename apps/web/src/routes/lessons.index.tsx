@@ -1,5 +1,6 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { Alert, AlertDescription, AlertTitle } from '~/components/ui/alert'
+import { Button } from '~/components/ui/button'
 import { useLearnerIdentity } from '~/utils/useLearnerIdentity'
 import { useLessonProgress } from '~/utils/useLessonProgress'
 import { useLessons } from '~/utils/useLessons'
@@ -86,6 +87,29 @@ function LessonsIndexPage() {
           <p>Completed</p>
         </div>
       </div>
+
+      <section className="curriculum-resume-strip" aria-label="Continue learning">
+        <div>
+          <p className="eyebrow">{nextLesson ? 'Continue' : 'Track complete'}</p>
+          <h2>{nextLesson ? nextLesson.title : 'All lessons completed'}</h2>
+          <p>
+            {nextLesson
+              ? 'Jump back into the first unfinished lesson with this learner progress.'
+              : 'Review the roadmap or reset any lesson workspace to practice again.'}
+          </p>
+        </div>
+        {nextLesson ? (
+          <Button asChild className="primary-pill rounded-full px-5 py-4" size="lg">
+            <Link
+              params={{ lessonSlug: nextLesson.slug }}
+              search={learnerSearch}
+              to="/lessons/$lessonSlug"
+            >
+              Resume lesson
+            </Link>
+          </Button>
+        ) : null}
+      </section>
 
       {stageOrder.map((stage) => {
         const stageLessons = lessons.filter((lesson) => lesson.stage === stage)
