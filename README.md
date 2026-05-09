@@ -10,14 +10,14 @@ An interactive Rust learning platform designed for self-study and for sharing wi
 - Make lessons shareable and progress trackable
 - Keep the architecture safe for public code execution
 
-## Planned Stack
+## Current Stack
 
 - Frontend: TanStack Start with Vite
 - Editor: Monaco Editor
 - Language support: `rust-analyzer` exposed through an LSP service
 - Backend API: Rust service for lesson data, progress, and orchestration
 - Runner: isolated Rust execution service for compile/run/test flows
-- Content: Markdown or MDX lessons plus structured exercise metadata
+- Content: structured lesson metadata with starter files, validation, hints, and solutions
 
 ## Repo Layout
 
@@ -45,16 +45,27 @@ This project should behave like a guided Rust bootcamp rather than a generic cod
 - validation tests
 - hints
 - solutions
+- next-lesson guidance
 - progress tracking
 
-## Delivery Order
+## Implemented Loop
 
-1. Lesson viewer and curriculum structure
-2. Monaco-based editor inside lessons
-3. Compile and run flow through the runner service
-4. Exercise validation and progress tracking
-5. LSP support via `rust-analyzer`
-6. Sharing, accounts, cohorts, and collaboration features
+The current app supports the first complete learning loop:
+
+- roadmap and homepage resume actions
+- per-learner progress links
+- Monaco-based multi-file lesson workspaces
+- run and check actions through the Rust runner
+- LSP diagnostics, formatting, and editor navigation
+- hints, read-only solution reveal, and apply-solution action
+- completion state, reset behavior, and next-lesson navigation
+
+Still future-facing:
+
+- accounts and cohort management
+- richer authored lesson explanations
+- collaborative learning features
+- hardened public deployment controls
 
 ## Local Development
 
@@ -83,6 +94,22 @@ bun run build:web
 bun run build:api
 bun run build:runner
 ```
+
+Run the web typecheck/build gate:
+
+```bash
+bun run check
+```
+
+Run the core learning-loop smoke test:
+
+```bash
+bun run smoke:learning-loop
+```
+
+The smoke test starts temporary API and runner processes, loads `hello-rust`,
+runs edited Rust code, checks validation, persists completion progress, and reads
+the progress back.
 
 ## Docker Compose
 
